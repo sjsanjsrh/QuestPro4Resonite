@@ -1,16 +1,16 @@
 ﻿using HarmonyLib;
-using NeosModLoader;
+using ResoniteModLoader;
 using FrooxEngine;
 using System.Net;
 using QuestProModule.ALXR;
-using BaseX;
+using Elements.Core;
 using System;
 using FrooxEngine.UIX;
 
 namespace QuestProModule
 {
-    public class QuestProMod : NeosMod
-	{
+    public class QuestProMod : ResoniteMod
+    {
 		[AutoRegisterConfigKey]
 		private readonly static ModConfigurationKey<string> QuestProIP = new ModConfigurationKey<string>("quest_pro_IP", "Quest Pro IP. This can be found in ALXR's settings, requires a restart to take effect", () => "127.0.0.1");
 
@@ -27,17 +27,17 @@ namespace QuestProModule
         public static float EyeOpenExponent = 1.0f;
         public static float EyeWideMult = 1.0f;
 
-        public override string Name => "QuestPro4Neos";
-		public override string Author => "dfgHiatus & Geenz";
+        public override string Name => "QuestPro4Resonite";
+		public override string Author => "dfgHiatus & Geenz & Sinduy";
 		public override string Version => "1.0.0";
-		public override string Link => "https://github.com/dfgHiatus/QuestPro4Neos";
+		public override string Link => "https://github.com/sjsanjsrh/QuestPro4Resonite";
 		public override void OnEngineInit()
 		{
             _config = GetConfiguration();
 
             _config.OnThisConfigurationChanged += OnConfigurationChanged;
 
-            new Harmony("net.dfgHiatus.QuestPro4Neos").PatchAll();
+            new Harmony("net.dfgHiatus.QuestPro4Resonite").PatchAll();
 		}
 
         [HarmonyPatch(typeof(InputInterface), MethodType.Constructor)]
