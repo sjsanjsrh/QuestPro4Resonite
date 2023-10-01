@@ -1,18 +1,14 @@
-# Neos-Eye-Face-API
+# QuestPro4Resonite
 
-A [NeosModLoader](https://github.com/zkxs/NeosModLoader) mod for [Neos VR](https://neos.com/)  
-Enables developers to add implement their own eye and face tracking solutions for NeosVR.
-
-Related issue on the Neos Github:
-https://github.com/Neos-Metaverse/NeosPublic/issues/1140
+A [ResoniteModLoader](https://github.com/resonite-modding-group/ResoniteModLoader) mod for [Resonite](https://resonite.com/)  
 
 ## Usage
-1. Install [NeosModLoader](https://github.com/zkxs/NeosModLoader).
-1. Clone this Repository
-1. Update `_eyes` and `_mouth` with values of your own.
-1. Build and place your DLL under "nml_mods". This folder should be at `C:\Program Files (x86)\Steam\steamapps\common\NeosVR\nml_mods` for a default install. You can create it if it's missing, or if you launch the game once with NeosModLoader.
-1. Start the game!
+1. Install [ALXR](/HowToInstallALXR.md)
+2. Install [ResoniteModLoader](https://github.com/resonite-modding-group/ResoniteModLoader)
+3. Download the [latest release](https://github.com/sjsanjsrh/QuestPro4Resonite/releases/latest) of this mod and place it in your Resonite install folder. This folder should be at ``C:\Program Files (x86)\Steam\steamapps\common\NeosVR\nml_mods``for a default install.
 
-If you want to verify that the mod is working you can check your Neos logs, or create an EmptyObject with an AvatarRawEyeData/AvatarRawMouthData Component (Found under Users -> Common Avatar System -> Face -> AvatarRawEyeData/AvatarRawMouthData).
-
-Thanks to those who helped me test this!
+## Launching
+1. Launch QuestLink on the Quest Pro
+2. Launch the alxr-client shortcut on the PC
+3. If you want to use SteamVR, launch it.
+4. Launch Resonite
