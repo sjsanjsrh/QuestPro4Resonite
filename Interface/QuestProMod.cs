@@ -50,7 +50,7 @@ namespace QuestProModule
                 {
                     qpm = new ALXRModule();
 
-                    qpm.Initialize(_config.GetValue(QuestProIP));
+                    _ = qpm.Initialize(_config.GetValue(QuestProIP));
 
                     __instance.RegisterInputDriver(new EyeDevice());
                     __instance.RegisterInputDriver(new MouthDevice());
