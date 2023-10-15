@@ -394,10 +394,10 @@ namespace QuestProModule.ALXR
                 expressions[FBExpression.Jaw_Thrust]
             );
 
-            mouth.LipUpperLeftRaise = expressions[FBExpression.Mouth_Left];
-            mouth.LipUpperRightRaise = expressions[FBExpression.Mouth_Right];
-            mouth.LipLowerLeftRaise = expressions[FBExpression.Mouth_Left];
-            mouth.LipLowerRightRaise = expressions[FBExpression.Mouth_Right];
+            mouth.LipUpperLeftRaise = expressions[FBExpression.Upper_Lip_Raiser_L];
+            mouth.LipUpperRightRaise = expressions[FBExpression.Upper_Lip_Raiser_R];
+            mouth.LipLowerLeftRaise = expressions[FBExpression.Lower_Lip_Depressor_L];
+            mouth.LipLowerRightRaise = expressions[FBExpression.Lower_Lip_Depressor_R];
 
             var stretch = (expressions[FBExpression.Lip_Stretcher_L] + expressions[FBExpression.Lip_Stretcher_R]) / 2;
             mouth.LipUpperHorizontal = stretch;
@@ -425,7 +425,7 @@ namespace QuestProModule.ALXR
             //    UnifiedTrackingData.LatestLipData.LatestShapes[(int)UnifiedExpression.MouthSmileRight] /= 1 + UnifiedTrackingData.LatestLipData.LatestShapes[(int)UnifiedExpression.MouthSadRight];
 
             mouth.CheekLeftPuffSuck = expressions[FBExpression.Cheek_Puff_L] - expressions[FBExpression.Cheek_Suck_L];
-            mouth.CheekRightPuffSuck = expressions[FBExpression.Cheek_Puff_R] - expressions[FBExpression.Cheek_Suck_R];
+            mouth.CheekRightPuffSuck = (expressions[FBExpression.Cheek_Puff_R]) - (expressions[FBExpression.Cheek_Suck_R]);
         }
 
         public float GetFaceExpression(int expressionIndex)
