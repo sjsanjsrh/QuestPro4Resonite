@@ -74,14 +74,32 @@ namespace QuestProModule
 
             if (_eyes.LeftEye.IsTracking || _eyes.RightEye.IsTracking && (!_eyes.LeftEye.IsTracking || !_eyes.RightEye.IsTracking))
             {
-                if (_eyes.LeftEye.IsTracking)
+                if (_eyes.LeftEye.IsTracking && _eyes.RightEye.IsTracking)
+                {
+                    _eyes.CombinedEye.RawPosition = (_eyes.LeftEye.RawPosition + _eyes.RightEye.RawPosition) * 0.5f;
+                    _eyes.CombinedEye.UpdateWithRotation(MathX.Slerp(_eyes.LeftEye.RawRotation, _eyes.RightEye.RawRotation, 0.5f));
+                    _eyes.CombinedEye.PupilDiameter = 0.004f;
+                    _eyes.CombinedEye.Widen = (leftEyeData.wide + rightEyeData.wide) / 2;
+                    _eyes.CombinedEye.Squeeze = (leftEyeData.squeeze + rightEyeData.squeeze) / 2;
+                    _eyes.CombinedEye.Openness = (leftEyeData.open + rightEyeData.open) / 2;
+
+                }
+                else if (_eyes.LeftEye.IsTracking)
                 {
                     _eyes.CombinedEye.RawPosition = _eyes.LeftEye.RawPosition;
                     _eyes.CombinedEye.UpdateWithRotation(_eyes.LeftEye.RawRotation);
+                    _eyes.CombinedEye.PupilDiameter = 0.004f;
+                    _eyes.CombinedEye.Widen = leftEyeData.wide;
+                    _eyes.CombinedEye.Squeeze = leftEyeData.squeeze;
+                    _eyes.CombinedEye.Openness = leftEyeData.open;
                 } else
                 {
                     _eyes.CombinedEye.RawPosition = _eyes.RightEye.RawPosition;
                     _eyes.CombinedEye.UpdateWithRotation(_eyes.RightEye.RawRotation);
+                    _eyes.CombinedEye.PupilDiameter = 0.004f;
+                    _eyes.CombinedEye.Widen = rightEyeData.wide;
+                    _eyes.CombinedEye.Squeeze = rightEyeData.squeeze;
+                    _eyes.CombinedEye.Openness = rightEyeData.open;
                 }
                 _eyes.CombinedEye.IsTracking = true;
             }

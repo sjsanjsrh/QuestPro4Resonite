@@ -344,42 +344,6 @@ namespace QuestProModule.ALXR
             }
         }
 
-        public void GetEyeExpressions(FBEye fbEye, FrooxEngine.Eye frooxEye)
-        {
-            frooxEye.PupilDiameter = 0.004f;
-
-            switch (fbEye)
-            {
-                case FBEye.Left:
-                    frooxEye.UpdateWithRotation(new floatQ(-expressions[FBExpression.LeftRot_x], -expressions[FBExpression.LeftRot_z], -expressions[FBExpression.LeftRot_y], expressions[FBExpression.LeftRot_w]));
-                    frooxEye.RawPosition = new float3(expressions[FBExpression.LeftPos_x], expressions[FBExpression.LeftPos_y], expressions[FBExpression.LeftPos_z]);
-                    frooxEye.Openness = MathX.Max(0, expressions[FBExpression.Eyes_Closed_L]);
-                    frooxEye.Squeeze = expressions[FBExpression.Lid_Tightener_L];
-                    frooxEye.Widen = expressions[FBExpression.Upper_Lid_Raiser_L];
-                    frooxEye.Frown = expressions[FBExpression.Lip_Corner_Puller_L] - expressions[FBExpression.Lip_Corner_Depressor_L];
-                    break;
-                case FBEye.Right:
-                    frooxEye.UpdateWithRotation(new floatQ(-expressions[FBExpression.RightRot_x], -expressions[FBExpression.RightRot_z], -expressions[FBExpression.RightRot_y], expressions[FBExpression.RightRot_w]));
-                    frooxEye.RawPosition = new float3(expressions[FBExpression.RightPos_x], expressions[FBExpression.RightPos_y], expressions[FBExpression.RightPos_z]);
-                    frooxEye.Openness = MathX.Max(0, expressions[FBExpression.Eyes_Closed_R]);
-                    frooxEye.Squeeze = expressions[FBExpression.Lid_Tightener_R];
-                    frooxEye.Widen = expressions[FBExpression.Upper_Lid_Raiser_R];
-                    frooxEye.Frown = expressions[FBExpression.Lip_Corner_Puller_R] - expressions[FBExpression.Lip_Corner_Depressor_R];
-                    break;
-                case FBEye.Combined:
-                    frooxEye.UpdateWithRotation(MathX.Slerp(new floatQ(expressions[FBExpression.LeftRot_x], expressions[FBExpression.LeftRot_y], expressions[FBExpression.LeftRot_z], expressions[FBExpression.LeftRot_w]), new floatQ(expressions[FBExpression.RightRot_x], expressions[FBExpression.RightRot_y], expressions[FBExpression.RightRot_z], expressions[FBExpression.RightRot_w]), 0.5f));
-                    frooxEye.RawPosition = MathX.Average(new float3(expressions[FBExpression.LeftPos_x], expressions[FBExpression.LeftPos_z], expressions[FBExpression.LeftPos_y]), new float3(expressions[FBExpression.RightPos_x], expressions[FBExpression.RightPos_z], expressions[FBExpression.RightPos_y]));
-                    frooxEye.Openness = MathX.Max(0, expressions[FBExpression.Eyes_Closed_R] + expressions[FBExpression.Eyes_Closed_R]) / 2.0f;
-                    frooxEye.Squeeze = (expressions[FBExpression.Lid_Tightener_R] + expressions[FBExpression.Lid_Tightener_R]) / 2.0f;
-                    frooxEye.Widen = (expressions[FBExpression.Upper_Lid_Raiser_R] + expressions[FBExpression.Upper_Lid_Raiser_R]) / 2.0f;
-                    break;
-            }
-
-            frooxEye.IsTracking = IsValid(frooxEye.RawPosition);
-            frooxEye.IsTracking = IsValid(frooxEye.Direction);
-            frooxEye.IsTracking = IsValid(frooxEye.Openness);
-        }
-
         // TODO: Double check jaw movements and mappings
         public void GetFacialExpressions(FrooxEngine.Mouth mouth)
         {
