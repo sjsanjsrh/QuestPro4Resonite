@@ -21,5 +21,5 @@
  
  5. Right click on the alxr-client and create a shortcut. Feel free to move the shortcut to wherever is most convenient
 
- 6.  Right click on the alxr-client shortcut and click properties. Under Target: append the flags --no-alvr-server --no-bindings to the end. Ensure there is a space between alxr-client.exe and the appended flags. Click ok
-     > If ALXR exits with error messages about Vulkan please try using a different graphics backend, you can add either -gD3D12 OR -gD3D11
+ 6.  Right click on the alxr-client shortcut and click properties. Under Target: append the flags ```--no-alvr-server --no-bindings``` to the end. Ensure there is a space between ```alxr-client.exe``` and the appended flags. Click ok
+     > If ALXR exits with error messages about Vulkan please try using a different graphics backend, you can add either ```-gD3D12 OR -gD3D11```
