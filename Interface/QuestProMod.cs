@@ -32,8 +32,8 @@ namespace QuestProModule
         public static float EyeMoveMulti = 1.0f;
 
         public override string Name => "QuestPro4Resonite";
-		public override string Author => "dfgHiatus & Geenz & Sinduy";
-		public override string Version => "1.0.1";
+		public override string Author => "dfgHiatus & Geenz & Sinduy & Dante Tucker";
+		public override string Version => "1.0.2";
 		public override string Link => "https://github.com/sjsanjsrh/QuestPro4Resonite";
 		public override void OnEngineInit()
 		{
