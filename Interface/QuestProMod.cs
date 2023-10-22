@@ -19,13 +19,17 @@ namespace QuestProModule
 
         [AutoRegisterConfigKey]
         private readonly static ModConfigurationKey<float> EyeWideMultiplier = new ModConfigurationKey<float>("quest_pro_eye_wide_multiplier", "Multiplier to apply to eye wideness.  Can be updated at runtime.  Useful for multiplying the amount your eyes can widen by.", () => 1.0f);
-        
+
+        [AutoRegisterConfigKey]
+        private static readonly ModConfigurationKey<float> EyeMovementMultiplier = new ModConfigurationKey<float>("quest_pro_eye_movement_multiplier", "Multiplier to adjust the movement range of the user's eyes.  Can be updated at runtime.", () => 1.0f);
+
         public static ALXRModule qpm;
 
         static ModConfiguration _config;
 
         public static float EyeOpenExponent = 1.0f;
         public static float EyeWideMult = 1.0f;
+        public static float EyeMoveMulti = 1.0f;
 
         public override string Name => "QuestPro4Resonite";
 		public override string Author => "dfgHiatus & Geenz & Sinduy";
@@ -84,6 +88,15 @@ namespace QuestProModule
                 if (@event.Config.TryGetValue(EyeWideMultiplier, out wideMult))
                 {
                     EyeWideMult = wideMult;
+                }
+            }
+
+            if (@event.Key == EyeMovementMultiplier)
+            {
+                float moveMulti = 1.0f;
+                if (@event.Config.TryGetValue(EyeMovementMultiplier, out moveMulti))
+                {
+                    EyeMoveMulti = moveMulti;
                 }
             }
         }
