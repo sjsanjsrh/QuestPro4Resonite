@@ -58,7 +58,7 @@ namespace QuestProModule
 
             _eyes.LeftEye.IsTracking &= leftEyeData.isValid;
             _eyes.LeftEye.RawPosition = leftEyeData.position;
-            _eyes.LeftEye.UpdateWithRotation(leftEyeData.rotation);
+            _eyes.LeftEye.UpdateWithRotation(MathX.Slerp(floatQ.Identity, leftEyeData.rotation, QuestProMod.EyeMoveMulti));
             _eyes.LeftEye.PupilDiameter = 0.004f;
             _eyes.LeftEye.Widen = leftEyeData.wide;
             _eyes.LeftEye.Squeeze = leftEyeData.squeeze;
@@ -66,7 +66,7 @@ namespace QuestProModule
 
             _eyes.RightEye.IsTracking &= rightEyeData.isValid;
             _eyes.RightEye.RawPosition = rightEyeData.position;
-            _eyes.RightEye.UpdateWithRotation(rightEyeData.rotation);
+            _eyes.RightEye.UpdateWithRotation(MathX.Slerp(floatQ.Identity, rightEyeData.rotation, QuestProMod.EyeMoveMulti));
             _eyes.RightEye.PupilDiameter = 0.004f;
             _eyes.RightEye.Widen = rightEyeData.wide;
             _eyes.RightEye.Squeeze = rightEyeData.squeeze;
