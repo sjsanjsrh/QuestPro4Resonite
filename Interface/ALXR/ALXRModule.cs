@@ -1,7 +1,6 @@
 ﻿using Elements.Core;
 using FrooxEngine;
 using System;
-using System.Linq.Expressions;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -19,6 +18,8 @@ namespace QuestProModule.ALXR
         private Thread tcpThread;
         private CancellationTokenSource cancellationTokenSource;
         private bool connected = false;
+
+        private bool InvertJaw;
 
         private const int NATURAL_EXPRESSIONS_COUNT = 63;
         private const float SRANIPAL_NORMALIZER = 0.75f;
@@ -292,17 +293,6 @@ namespace QuestProModule.ALXR
             }
         }
 
-        public void Teardown()
-        {
-            cancellationTokenSource.Cancel();
-            tcpThread.Abort();
-            cancellationTokenSource.Dispose();
-            stream.Close();
-            stream.Dispose();
-            client.Close();
-            client.Dispose();
-        }
-
         bool IsValid(float3 value) => IsValid(value.x) && IsValid(value.y) && IsValid(value.z);
 
         bool IsValid(float value) => !float.IsInfinity(value) && !float.IsNaN(value);
@@ -351,9 +341,20 @@ namespace QuestProModule.ALXR
             mouth.IsTracking = Engine.Current.InputInterface.VR_Active;
 
             mouth.JawOpen = expressions[FBExpression.Jaw_Drop] - expressions[FBExpression.Lips_Toward];
-            
-            mouth.Jaw = new float3( 
-                expressions[FBExpression.Jaw_Sideways_Left] - expressions[FBExpression.Jaw_Sideways_Right],
+
+            float JawLR;
+
+            if (InvertJaw)
+            {
+                JawLR = expressions[FBExpression.Jaw_Sideways_Left] - expressions[FBExpression.Jaw_Sideways_Right]; //Fixed inverted Jaw movement.
+            }
+            else
+            {
+                JawLR = expressions[FBExpression.Jaw_Sideways_Right] - expressions[FBExpression.Jaw_Sideways_Left]; //Fixed inverted Jaw movement.
+            }
+
+            mouth.Jaw = new float3(
+                JawLR,
                 expressions[FBExpression.Jaw_Drop],
                 expressions[FBExpression.Jaw_Thrust]
             );
@@ -402,6 +403,22 @@ namespace QuestProModule.ALXR
             Left,
             Right,
             Combined
+        }
+
+        public void Teardown()
+        {
+            cancellationTokenSource.Cancel();
+            tcpThread.Abort();
+            cancellationTokenSource.Dispose();
+            stream.Close();
+            stream.Dispose();
+            client.Close();
+            client.Dispose();
+        }
+
+        public void JawState(bool input)
+        {
+            InvertJaw = input;
         }
     }
 }

@@ -36,24 +36,20 @@
   <ItemGroup>
     <Reference Include="0Harmony, Version=2.2.1.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Resonite\rml_libs\0Harmony.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="CodeX">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Resonite\RuntimeData\SystemHelper\CodeX.dll</HintPath>
+      <HintPath>D:\Games\Steam\steamapps\common\Resonite\0Harmony.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Elements.Core">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Resonite\Resonite_Data\Managed\Elements.Core.dll</HintPath>
+      <HintPath>D:\Games\Steam\steamapps\common\Resonite\Resonite_Data\Managed\Elements.Core.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="FrooxEngine, Version=2021.10.26.9, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Resonite\Resonite_Data\Managed\FrooxEngine.dll</HintPath>
+      <HintPath>D:\Games\Steam\steamapps\common\Resonite\Resonite_Data\Managed\FrooxEngine.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="ResoniteModLoader">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Resonite\Libraries\ResoniteModLoader.dll</HintPath>
+      <HintPath>D:\Games\Steam\steamapps\common\Resonite\ResoniteModLoader.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="System" />
@@ -73,6 +69,6 @@
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <PostBuildEvent>copy "$(TargetDir)\$(TargetFileName)" "C:\Program Files (x86)\Steam\steamapps\common\Resonite\rml_mods"</PostBuildEvent>
+    <PostBuildEvent>copy "$(TargetDir)\$(TargetFileName)" "D:\Games\Steam\steamapps\common\Resonite\rml_mods"</PostBuildEvent>
   </PropertyGroup>
 </Project>
