@@ -1,11 +1,10 @@
 ﻿using HarmonyLib;
 using ResoniteModLoader;
 using FrooxEngine;
-using System.Net;
 using QuestProModule.ALXR;
 using Elements.Core;
-using System;
-using FrooxEngine.UIX;
+using System; 
+using System.Threading;
 
 namespace QuestProModule
 {
@@ -23,7 +22,18 @@ namespace QuestProModule
         [AutoRegisterConfigKey]
         private static readonly ModConfigurationKey<float> EyeMovementMultiplier = new ModConfigurationKey<float>("quest_pro_eye_movement_multiplier", "Multiplier to adjust the movement range of the user's eyes.  Can be updated at runtime.", () => 1.0f);
 
+        [AutoRegisterConfigKey]
+        private static readonly ModConfigurationKey<float> PupilSize = new ModConfigurationKey<float>("quest_pro_eye_pupil_size", "Used to adjust pupil size to a custom static size.", () => 0.5f);
+
+        [AutoRegisterConfigKey]
+        private static readonly ModConfigurationKey<bool> InvertJaw = new ModConfigurationKey<bool>("quest_pro_Invert_Jaw", "Value to invert Jaw Left/Right movement. (Only use if your jaw is inverted from your movements)", () => false);
+
+        [AutoRegisterConfigKey]
+        private static readonly ModConfigurationKey<bool> ResetEventInput = new ModConfigurationKey<bool>("quest_pro_reset_event", "Press to reinitialize the Quest Pro Module. (ONLY PRESS ONCE)", () => false);
+
         public static ALXRModule qpm;
+
+        public static EyeDevice edm;
 
         static ModConfiguration _config;
 
@@ -32,8 +42,8 @@ namespace QuestProModule
         public static float EyeMoveMulti = 1.0f;
 
         public override string Name => "QuestPro4Resonite";
-		public override string Author => "dfgHiatus & Geenz & Sinduy & Dante Tucker";
-		public override string Version => "1.0.2";
+		public override string Author => "dfgHiatus & Geenz & Sinduy & Dante Tucker & ScarsTRF";
+		public override string Version => "1.0.3";
 		public override string Link => "https://github.com/sjsanjsrh/QuestPro4Resonite";
 		public override void OnEngineInit()
 		{
@@ -55,11 +65,21 @@ namespace QuestProModule
                     qpm = new ALXRModule();
 
                     _ = qpm.Initialize(_config.GetValue(QuestProIP));
+                    qpm.JawState(_config.GetValue(InvertJaw));
 
-                    __instance.RegisterInputDriver(new EyeDevice());
+                    edm = new EyeDevice();
+                    
+                    if (_config.TryGetValue(PupilSize, out float scale))
+                    {
+                        scale = scale * 0.01f;
+                        edm.SetPupilSize(scale);
+                    }
+
+                    __instance.RegisterInputDriver(edm);
                     __instance.RegisterInputDriver(new MouthDevice());
 
                     Engine.Current.OnShutdown += () => qpm.Teardown();
+                    Engine.Current.OnShutdown += () => qpm = null; //Used to allow the game to close
                 }
                 catch (Exception ex)
                 {
@@ -75,8 +95,7 @@ namespace QuestProModule
             UniLog.Log($"Var changed! {@event.Label}");
             if (@event.Key == EyeOpennessExponent)
             {
-                float openExp = 1.0f;
-                if (@event.Config.TryGetValue(EyeOpennessExponent, out openExp))
+                if (@event.Config.TryGetValue(EyeOpennessExponent, out float openExp))
                 {
                     EyeOpenExponent = openExp;
                 }
@@ -84,8 +103,7 @@ namespace QuestProModule
 
             if (@event.Key == EyeOpennessExponent)
             {
-                float wideMult = 1.0f;
-                if (@event.Config.TryGetValue(EyeWideMultiplier, out wideMult))
+                if (@event.Config.TryGetValue(EyeWideMultiplier, out float wideMult))
                 {
                     EyeWideMult = wideMult;
                 }
@@ -93,10 +111,33 @@ namespace QuestProModule
 
             if (@event.Key == EyeMovementMultiplier)
             {
-                float moveMulti = 1.0f;
-                if (@event.Config.TryGetValue(EyeMovementMultiplier, out moveMulti))
+                if (@event.Config.TryGetValue(EyeMovementMultiplier, out float moveMulti))
                 {
                     EyeMoveMulti = moveMulti;
+                }
+            }
+
+            if (@event.Key == ResetEventInput)
+            {
+                qpm.Teardown();
+                Thread.Sleep(1000);
+                _ = qpm.Initialize(_config.GetValue(QuestProIP));
+            }
+
+            if (@event.Key == InvertJaw)
+            {
+                if (@event.Config.TryGetValue(InvertJaw, out bool invertJaw))
+                {
+                    qpm.JawState(invertJaw);
+                }
+            }
+
+            if (@event.Key == PupilSize)
+            {
+                if (@event.Config.TryGetValue(PupilSize, out float scale))
+                {
+                    scale = scale * 0.01f;
+                    edm.SetPupilSize(scale);
                 }
             }
         }
