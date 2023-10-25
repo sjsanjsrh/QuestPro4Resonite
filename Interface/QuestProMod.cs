@@ -23,7 +23,7 @@ namespace QuestProModule
         private static readonly ModConfigurationKey<float> EyeMovementMultiplier = new ModConfigurationKey<float>("quest_pro_eye_movement_multiplier", "Multiplier to adjust the movement range of the user's eyes.  Can be updated at runtime.", () => 1.0f);
 
         [AutoRegisterConfigKey]
-        private static readonly ModConfigurationKey<float> PupilSize = new ModConfigurationKey<float>("quest_pro_eye_pupil_size", "Used to adjust pupil size to a custom static size.", () => 0.5f);
+        private static readonly ModConfigurationKey<float> PupilSize = new ModConfigurationKey<float>("quest_pro_eye_pupil_size", "Used to adjust pupil size to a custom static size. (Best values are between 0.2 and 0.8, though might vary.", () => 0.5f);
 
         [AutoRegisterConfigKey]
         private static readonly ModConfigurationKey<bool> InvertJaw = new ModConfigurationKey<bool>("quest_pro_Invert_Jaw", "Value to invert Jaw Left/Right movement. (Only use if your jaw is inverted from your movements)", () => false);
@@ -43,7 +43,7 @@ namespace QuestProModule
 
         public override string Name => "QuestPro4Resonite";
 		public override string Author => "dfgHiatus & Geenz & Sinduy & Dante Tucker & ScarsTRF";
-		public override string Version => "1.0.3";
+		public override string Version => "1.0.4";
 		public override string Link => "https://github.com/sjsanjsrh/QuestPro4Resonite";
 		public override void OnEngineInit()
 		{
@@ -77,15 +77,15 @@ namespace QuestProModule
 
                     __instance.RegisterInputDriver(edm);
                     __instance.RegisterInputDriver(new MouthDevice());
-
-                    Engine.Current.OnShutdown += () => qpm.Teardown();
-                    Engine.Current.OnShutdown += () => qpm = null; //Used to allow the game to close
                 }
                 catch (Exception ex)
                 {
                     Warn("Module failed to initiallize.");
                     Warn(ex.ToString());
                 }
+
+                Engine.Current.OnShutdown += () => qpm.Teardown();
+                Engine.Current.OnShutdown += () => qpm = null; //Used to allow the game to close
             }
         }
 
