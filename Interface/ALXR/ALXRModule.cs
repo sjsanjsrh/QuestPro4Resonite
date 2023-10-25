@@ -407,13 +407,21 @@ namespace QuestProModule.ALXR
 
         public void Teardown()
         {
-            cancellationTokenSource.Cancel();
-            tcpThread.Abort();
-            cancellationTokenSource.Dispose();
-            stream.Close();
-            stream.Dispose();
-            client.Close();
-            client.Dispose();
+            try
+            {
+                cancellationTokenSource.Cancel();
+                tcpThread.Abort();
+                cancellationTokenSource.Dispose();
+                stream.Close();
+                stream.Dispose();
+                client.Close();
+                client.Dispose();
+            }
+            catch (Exception ex)
+            {
+                UniLog.Log("Exception when running teardown.");
+                UniLog.Error(ex.ToString());
+            }
         }
 
         public void JawState(bool input)
