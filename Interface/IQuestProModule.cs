@@ -5,7 +5,7 @@ namespace QuestProModule
 {
     public interface IQuestProModule
     {
-        public Task<bool> Initialize(string ipaddress);
+        public bool Initialize(string dlldir);
 
         public void Update();
 

@@ -5,13 +5,17 @@ using QuestProModule.ALXR;
 using Elements.Core;
 using System; 
 using System.Threading;
+using System.IO;
+using System.Reflection;
+using System.Threading.Tasks;
+using System.Diagnostics;
 
 namespace QuestProModule
 {
     public class QuestProMod : ResoniteMod
     {
 		[AutoRegisterConfigKey]
-		private readonly static ModConfigurationKey<string> QuestProIP = new ModConfigurationKey<string>("quest_pro_IP", "Quest Pro IP. This can be found in ALXR's settings, requires a restart to take effect", () => "127.0.0.1");
+		private readonly static ModConfigurationKey<string> libalxr_path = new ModConfigurationKey<string>("libalxr_path", "path of libalxr", () => "libalxr-win-x64");
 
         [AutoRegisterConfigKey]
         private readonly static ModConfigurationKey<float> EyeOpennessExponent = new ModConfigurationKey<float>("quest_pro_eye_open_exponent", "Exponent to apply to eye openness.  Can be updated at runtime.  Useful for applying different curves for how open your eyes are.", () => 1.0f);
@@ -58,17 +62,22 @@ namespace QuestProModule
         [HarmonyPatch(new Type[] { typeof(Engine) })]
         public class InputInterfaceCtorPatch
         {
-            public static void Postfix(InputInterface __instance)
+            public static async void Postfix(InputInterface __instance)
             {
                 try
                 {
                     qpm = new ALXRModule();
-
-                    _ = qpm.Initialize(_config.GetValue(QuestProIP));
+                    var path = _config.GetValue(libalxr_path);
+                    if (!Path.IsPathRooted(path))
+                    {
+                        path = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "..", path);
+                    }
+                    Msg($"Loading libalxr from {path}");
+                    qpm.Initialize(path);
                     qpm.JawState(_config.GetValue(InvertJaw));
 
                     edm = new EyeDevice();
-                    
+
                     if (_config.TryGetValue(PupilSize, out float scale))
                     {
                         scale = scale * 0.01f;
@@ -83,9 +92,6 @@ namespace QuestProModule
                     Warn("Module failed to initiallize.");
                     Warn(ex.ToString());
                 }
-
-                Engine.Current.OnShutdown += () => qpm.Teardown();
-                Engine.Current.OnShutdown += () => qpm = null; //Used to allow the game to close
             }
         }
 
@@ -121,7 +127,13 @@ namespace QuestProModule
             {
                 qpm.Teardown();
                 Thread.Sleep(1000);
-                _ = qpm.Initialize(_config.GetValue(QuestProIP));
+                var path = _config.GetValue(libalxr_path);
+                if (!Path.IsPathRooted(path))
+                {
+                    path = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "..", path);
+                }
+                UniLog.Log($"Loading libalxr from {path}");
+                qpm.Initialize(path);
             }
 
             if (@event.Key == InvertJaw)

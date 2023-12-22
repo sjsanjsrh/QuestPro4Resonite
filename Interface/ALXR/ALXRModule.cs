@@ -5,80 +5,83 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using LibALXR;
+using ResoniteModLoader;
 
 namespace QuestProModule.ALXR
 {
     public class ALXRModule : IQuestProModule
     {
-        private IPAddress localAddr;
-        private const int DEFAULT_PORT = 13191;
-        
-        private TcpClient client;
-        private NetworkStream stream;
-        private Thread tcpThread;
-        private CancellationTokenSource cancellationTokenSource;
+        private CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
         private bool connected = false;
 
         private bool InvertJaw;
 
-        private const int NATURAL_EXPRESSIONS_COUNT = 63;
         private const float SRANIPAL_NORMALIZER = 0.75f;
-        private byte[] rawExpressions = new byte[NATURAL_EXPRESSIONS_COUNT * 4 + (8 * 2 * 4)];
-        private float[] expressions = new float[NATURAL_EXPRESSIONS_COUNT + (8 * 2)];
+        private ALXRProcessFrameResult alxrResult;
+        private float[] expressions = new float[(int)FBExpression2.Max];
 
         private double pitch_L, yaw_L, pitch_R, yaw_R; // Eye rotations
 
-        public bool Connected
-        { get { return connected; } }
+        private bool _connected = false;
+        public bool Connected => _connected;
 
-        public async Task<bool> Initialize(string ipconfig)
+        public class Config
         {
+            public string DLLDir { get; set; } = "";
+            public ALXRGraphicsApi GraphicsApi { get; set; } = ALXRGraphicsApi.Auto;
+            public ALXRFacialExpressionType FacialTrackingExt { get; set; } = ALXRFacialExpressionType.FB_V2;
+            public ALXREyeTrackingType EyeTrackingExt { get; set; } = ALXREyeTrackingType.Auto;
+            public bool EnableHandleTracking { get; set; } = true;
+        }
+        static Config config = new Config();
+
+        public bool Initialize(string dlldir)
+        {
+            if (!LibALXR.LibALXR.AddDllSearchPath(dlldir))
+            {
+                UniLog.Error($"[libalxr] unmanaged library path to search failed to be set.");
+                return false;
+            }
+            config.DLLDir = dlldir;
             try
             {
-                localAddr = IPAddress.Parse(ipconfig);
+                LibALXR.LibALXR.alxr_set_log_custom_output(ALXRLogOptions.None, (level, output, len) =>
+                {
+                    var fullMsg = $"[libalxr] {output}";
+                    switch (level)
+                    {
+                        case ALXRLogLevel.Info:
+                            ResoniteMod.Msg(fullMsg);
+                            break;
+                        case ALXRLogLevel.Warning:
+                            ResoniteMod.Warn(fullMsg);
+                            break;
+                        case ALXRLogLevel.Error:
+                            ResoniteMod.Error(fullMsg);
+                            break;
+                    }
+                });
 
                 cancellationTokenSource = new CancellationTokenSource();
-
-                UniLog.Log("Attempting to connect to TCP socket.");
-                var connected = await ConnectToTCP(); // This should not block the main thread anymore...?
-            } 
+            }
             catch (Exception e)
             {
                 UniLog.Error(e.Message);
                 return false;
             }
 
-            if (connected) 
-            {
-                tcpThread = new Thread(Update);
-                tcpThread.Start();
-                return true;
-            }
-
-            return false;
+            return true;
         }
 
-        private async Task<bool> ConnectToTCP()
+        private bool ConnectALXR()
         {
             try
             {
-                client = new TcpClient();
-                UniLog.Log($"Trying to establish a Quest Pro connection at {localAddr}:{DEFAULT_PORT}...");
-
-                await client.ConnectAsync(localAddr, DEFAULT_PORT);
-
-                if (client.Connected)
+                var ctx = CreateALXRClientCtx();
+                var sysProperties = new ALXRSystemProperties();
+                if (!LibALXR.LibALXR.alxr_init(ref ctx, out sysProperties))
                 {
-                    UniLog.Log("Connected to Quest Pro!");
-
-                    stream = client.GetStream();
-                    connected = true;
-
-                    return true;
-                } 
-                else
-                {
-                    UniLog.Error("Couldn't connect!");
                     return false;
                 }
             }
@@ -87,161 +90,133 @@ namespace QuestProModule.ALXR
                 UniLog.Error(e.Message);
                 return false;
             }
+            return true;
         }
 
         public void Update()
         {
             while (!cancellationTokenSource.IsCancellationRequested)
             {
-                try
+                if (!ConnectALXR())
                 {
-                    // Attempt reconnection if needed
-                    if (!connected || stream == null)
-                    {
-                        ConnectToTCP().RunSynchronously();
-                    }
-
-                    // If the connection was unsuccessful, wait a bit and try again
-                    if (stream == null)
-                    {
-                        UniLog.Warning("Didn't reconnect to the Quest Pro just yet! Trying again...");
-                        return;
-                    }
-
-                    if (!stream.CanRead)
-                    {
-                        UniLog.Warning("Can't read from the Quest Pro network stream just yet! Trying again...");
-                        return;
-                    }
-
-                    int offset = 0;
-                    int readBytes;
-                    do
-                    {
-                        readBytes = stream.Read(rawExpressions, offset, rawExpressions.Length - offset);
-                        offset += readBytes;
-                    }
-                    while (readBytes > 0 && offset < rawExpressions.Length);
-
-                    if (offset < rawExpressions.Length && connected)
-                    {
-                        UniLog.Warning("End of stream! Reconnecting...");
-                        Thread.Sleep(1000);
-                        connected = false;
-                        try
-                        {
-                            stream.Close();
-                        }
-                        catch (SocketException e)
-                        {
-                            UniLog.Error(e.Message);
-                            Thread.Sleep(1000);
-                        }
-                    }
-
-                    // We receive information from the stream as a byte array 63*4 bytes long, since floats are 32 bits long and we have 63 expressions.
-                    // We then need to convert these bytes to a floats. I've opted to use Buffer.BlockCopy instead of BitConverter.ToSingle, since it's faster.
-                    // Future note: Testing this against Array.Copy() doesn't seem to show any difference in performance, so I'll stick to this
-                    Buffer.BlockCopy(rawExpressions, 0, expressions, 0, NATURAL_EXPRESSIONS_COUNT * 4 + (8 * 2 * 4));
-
-                    // Preprocess our expressions per Meta's Documentation
-                    PrepareUpdate();
-                }
-                catch (SocketException e)
-                {
-                    UniLog.Error(e.Message);
+                    UniLog.Error("[libxr] failed connect to Quest Pro");
                     Thread.Sleep(1000);
                 }
-            }         
+                while (!cancellationTokenSource.IsCancellationRequested)
+                {
+                    try
+                    {
+                        LibALXR.LibALXR.alxr_process_frame2(ref alxrResult);
+                        alxrResult.facialEyeTracking.ExpressionWeightSpan.CopyTo(expressions);
+                        if (!LibALXR.LibALXR.alxr_is_session_running())
+                        {
+                            Thread.Sleep(250);
+                            _connected = false;
+                        }
+                        else
+                        {
+                            _connected = true;
+                        }
+                        // Preprocess our expressions per Meta's Documentation
+                        PrepareUpdate();
+                    }
+                    catch (SocketException e)
+                    {
+                        UniLog.Error(e.Message);
+                        _connected = false;
+                        Thread.Sleep(1000);
+                    }
+                }
+            }
         }
     
         private void PrepareUpdate()
         {
-            // Eye Expressions
+            //// Eye Expressions
 
-            double q_x = expressions[FBExpression.LeftRot_x];
-            double q_y = expressions[FBExpression.LeftRot_y];
-            double q_z = expressions[FBExpression.LeftRot_z];
-            double q_w = expressions[FBExpression.LeftRot_w];
+            //double q_x = expressions[(int)FBExpression.LeftRot_x];
+            //double q_y = expressions[(int)FBExpression.LeftRot_y];
+            //double q_z = expressions[(int)FBExpression.LeftRot_z];
+            //double q_w = expressions[(int)FBExpression.LeftRot_w];
 
-            double yaw = Math.Atan2(2.0 * (q_y * q_z + q_w * q_x), q_w * q_w - q_x * q_x - q_y * q_y + q_z * q_z);
-            double pitch = Math.Asin(-2.0 * (q_x * q_z - q_w * q_y));
-            // Not needed for eye tracking
-            // double roll = Math.Atan2(2.0 * (q_x * q_y + q_w * q_z), q_w * q_w + q_x * q_x - q_y * q_y - q_z * q_z); 
+            //double yaw = Math.Atan2(2.0 * (q_y * q_z + q_w * q_x), q_w * q_w - q_x * q_x - q_y * q_y + q_z * q_z);
+            //double pitch = Math.Asin(-2.0 * (q_x * q_z - q_w * q_y));
+            //// Not needed for eye tracking
+            //// double roll = Math.Atan2(2.0 * (q_x * q_y + q_w * q_z), q_w * q_w + q_x * q_x - q_y * q_y - q_z * q_z); 
 
-            // From radians
-            pitch_L = 180.0 / Math.PI * pitch; 
-            yaw_L = 180.0 / Math.PI * yaw;
+            //// From radians
+            //pitch_L = 180.0 / Math.PI * pitch; 
+            //yaw_L = 180.0 / Math.PI * yaw;
 
-            q_x = expressions[FBExpression.RightRot_x];
-            q_y = expressions[FBExpression.RightRot_y];
-            q_z = expressions[FBExpression.RightRot_z];
-            q_w = expressions[FBExpression.RightRot_w];
+            //q_x = expressions[(int)FBExpression.RightRot_x];
+            //q_y = expressions[(int)FBExpression.RightRot_y];
+            //q_z = expressions[(int)FBExpression.RightRot_z];
+            //q_w = expressions[(int)FBExpression.RightRot_w];
 
-            yaw = Math.Atan2(2.0 * (q_y * q_z + q_w * q_x), q_w * q_w - q_x * q_x - q_y * q_y + q_z * q_z);
-            pitch = Math.Asin(-2.0 * (q_x * q_z - q_w * q_y));
+            //yaw = Math.Atan2(2.0 * (q_y * q_z + q_w * q_x), q_w * q_w - q_x * q_x - q_y * q_y + q_z * q_z);
+            //pitch = Math.Asin(-2.0 * (q_x * q_z - q_w * q_y));
 
-            // From radians
-            pitch_R = 180.0 / Math.PI * pitch; 
-            yaw_R = 180.0 / Math.PI * yaw;
+            //// From radians
+            //pitch_R = 180.0 / Math.PI * pitch; 
+            //yaw_R = 180.0 / Math.PI * yaw;
 
             // Face Expressions
 
             // Eyelid edge case, eyes are actually closed now
-            if (expressions[FBExpression.Eyes_Look_Down_L] == expressions[FBExpression.Eyes_Look_Up_L] && expressions[FBExpression.Eyes_Closed_L] > 0.25f)
+            if (expressions[(int)FBExpression.Eyes_Look_Down_L] == expressions[(int)FBExpression.Eyes_Look_Up_L] && expressions[(int)FBExpression.Eyes_Closed_L] > 0.25f)
             { 
-                expressions[FBExpression.Eyes_Closed_L] = 0; // 0.9f - (expressions[FBExpression.Lid_Tightener_L] * 3);
+                expressions[(int)FBExpression.Eyes_Closed_L] = 0; // 0.9f - (expressions[(int)FBExpression.Lid_Tightener_L] * 3);
             }
             else
             {
-                expressions[FBExpression.Eyes_Closed_L] = 0.9f - ((expressions[FBExpression.Eyes_Closed_L] * 3) / (1 + expressions[FBExpression.Eyes_Look_Down_L] * 3));
+                expressions[(int)FBExpression.Eyes_Closed_L] = 0.9f - ((expressions[(int)FBExpression.Eyes_Closed_L] * 3) / (1 + expressions[(int)FBExpression.Eyes_Look_Down_L] * 3));
             }
 
             // Another eyelid edge case
-            if (expressions[FBExpression.Eyes_Look_Down_R] == expressions[FBExpression.Eyes_Look_Up_R] && expressions[FBExpression.Eyes_Closed_R] > 0.25f)
+            if (expressions[(int)FBExpression.Eyes_Look_Down_R] == expressions[(int)FBExpression.Eyes_Look_Up_R] && expressions[(int)FBExpression.Eyes_Closed_R] > 0.25f)
             { 
-                expressions[FBExpression.Eyes_Closed_R] = 0; // 0.9f - (expressions[FBExpression.Lid_Tightener_R] * 3);
+                expressions[(int)FBExpression.Eyes_Closed_R] = 0; // 0.9f - (expressions[(int)FBExpression.Lid_Tightener_R] * 3);
             }
             else
             {
-                expressions[FBExpression.Eyes_Closed_R] = 0.9f - ((expressions[FBExpression.Eyes_Closed_R] * 3) / (1 + expressions[FBExpression.Eyes_Look_Down_R] * 3));
+                expressions[(int)FBExpression.Eyes_Closed_R] = 0.9f - ((expressions[(int)FBExpression.Eyes_Closed_R] * 3) / (1 + expressions[(int)FBExpression.Eyes_Look_Down_R] * 3));
             }
 
-            //expressions[FBExpression.Lid_Tightener_L = 0.8f-expressions[FBExpression.Eyes_Closed_L]; // Sad: fix combined param instead
-            //expressions[FBExpression.Lid_Tightener_R = 0.8f-expressions[FBExpression.Eyes_Closed_R]; // Sad: fix combined param instead
+            //expressions[(int)FBExpression.Lid_Tightener_L = 0.8f-expressions[(int)FBExpression.Eyes_Closed_L]; // Sad: fix combined param instead
+            //expressions[(int)FBExpression.Lid_Tightener_R = 0.8f-expressions[(int)FBExpression.Eyes_Closed_R]; // Sad: fix combined param instead
 
-            if (1 - expressions[FBExpression.Eyes_Closed_L] < expressions[FBExpression.Lid_Tightener_L])
-                expressions[FBExpression.Lid_Tightener_L] = (1 - expressions[FBExpression.Eyes_Closed_L]) - 0.01f;
+            if (1 - expressions[(int)FBExpression.Eyes_Closed_L] < expressions[(int)FBExpression.Lid_Tightener_L])
+                expressions[(int)FBExpression.Lid_Tightener_L] = (1 - expressions[(int)FBExpression.Eyes_Closed_L]) - 0.01f;
 
-            if (1 - expressions[FBExpression.Eyes_Closed_R] < expressions[FBExpression.Lid_Tightener_R])
-                expressions[FBExpression.Lid_Tightener_R] = (1 - expressions[FBExpression.Eyes_Closed_R]) - 0.01f;
+            if (1 - expressions[(int)FBExpression.Eyes_Closed_R] < expressions[(int)FBExpression.Lid_Tightener_R])
+                expressions[(int)FBExpression.Lid_Tightener_R] = (1 - expressions[(int)FBExpression.Eyes_Closed_R]) - 0.01f;
 
-            //expressions[FBExpression.Lid_Tightener_L = Math.Max(0, expressions[FBExpression.Lid_Tightener_L] - 0.15f);
-            //expressions[FBExpression.Lid_Tightener_R = Math.Max(0, expressions[FBExpression.Lid_Tightener_R] - 0.15f);
+            //expressions[(int)FBExpression.Lid_Tightener_L = Math.Max(0, expressions[(int)FBExpression.Lid_Tightener_L] - 0.15f);
+            //expressions[(int)FBExpression.Lid_Tightener_R = Math.Max(0, expressions[(int)FBExpression.Lid_Tightener_R] - 0.15f);
 
-            expressions[FBExpression.Upper_Lid_Raiser_L] = Math.Max(0, expressions[FBExpression.Upper_Lid_Raiser_L] - 0.5f);
-            expressions[FBExpression.Upper_Lid_Raiser_R] = Math.Max(0, expressions[FBExpression.Upper_Lid_Raiser_R] - 0.5f);
+            expressions[(int)FBExpression.Upper_Lid_Raiser_L] = Math.Max(0, expressions[(int)FBExpression.Upper_Lid_Raiser_L] - 0.5f);
+            expressions[(int)FBExpression.Upper_Lid_Raiser_R] = Math.Max(0, expressions[(int)FBExpression.Upper_Lid_Raiser_R] - 0.5f);
 
-            expressions[FBExpression.Lid_Tightener_L] = Math.Max(0, expressions[FBExpression.Lid_Tightener_L] - 0.5f);
-            expressions[FBExpression.Lid_Tightener_R] = Math.Max(0, expressions[FBExpression.Lid_Tightener_R] - 0.5f);
+            expressions[(int)FBExpression.Lid_Tightener_L] = Math.Max(0, expressions[(int)FBExpression.Lid_Tightener_L] - 0.5f);
+            expressions[(int)FBExpression.Lid_Tightener_R] = Math.Max(0, expressions[(int)FBExpression.Lid_Tightener_R] - 0.5f);
 
-            expressions[FBExpression.Inner_Brow_Raiser_L] = Math.Min(1, expressions[FBExpression.Inner_Brow_Raiser_L] * 3f); // * 4;
-            expressions[FBExpression.Brow_Lowerer_L] = Math.Min(1, expressions[FBExpression.Brow_Lowerer_L] * 3f); // * 4;
-            expressions[FBExpression.Outer_Brow_Raiser_L] = Math.Min(1, expressions[FBExpression.Outer_Brow_Raiser_L] * 3f); // * 4;
+            expressions[(int)FBExpression.Inner_Brow_Raiser_L] = Math.Min(1, expressions[(int)FBExpression.Inner_Brow_Raiser_L] * 3f); // * 4;
+            expressions[(int)FBExpression.Brow_Lowerer_L] = Math.Min(1, expressions[(int)FBExpression.Brow_Lowerer_L] * 3f); // * 4;
+            expressions[(int)FBExpression.Outer_Brow_Raiser_L] = Math.Min(1, expressions[(int)FBExpression.Outer_Brow_Raiser_L] * 3f); // * 4;
 
-            expressions[FBExpression.Inner_Brow_Raiser_R] = Math.Min(1, expressions[FBExpression.Inner_Brow_Raiser_R] * 3f); // * 4;
-            expressions[FBExpression.Brow_Lowerer_R] = Math.Min(1, expressions[FBExpression.Brow_Lowerer_R] * 3f); // * 4;
-            expressions[FBExpression.Outer_Brow_Raiser_R] = Math.Min(1, expressions[FBExpression.Outer_Brow_Raiser_R] * 3f); // * 4;
+            expressions[(int)FBExpression.Inner_Brow_Raiser_R] = Math.Min(1, expressions[(int)FBExpression.Inner_Brow_Raiser_R] * 3f); // * 4;
+            expressions[(int)FBExpression.Brow_Lowerer_R] = Math.Min(1, expressions[(int)FBExpression.Brow_Lowerer_R] * 3f); // * 4;
+            expressions[(int)FBExpression.Outer_Brow_Raiser_R] = Math.Min(1, expressions[(int)FBExpression.Outer_Brow_Raiser_R] * 3f); // * 4;
 
-            expressions[FBExpression.Eyes_Look_Up_L] = expressions[FBExpression.Eyes_Look_Up_L] * 0.55f;
-            expressions[FBExpression.Eyes_Look_Up_R] = expressions[FBExpression.Eyes_Look_Up_R] * 0.55f;
-            expressions[FBExpression.Eyes_Look_Down_L] = expressions[FBExpression.Eyes_Look_Down_L] * 1.5f;
-            expressions[FBExpression.Eyes_Look_Down_R] = expressions[FBExpression.Eyes_Look_Down_R] * 1.5f;
+            expressions[(int)FBExpression.Eyes_Look_Up_L] = expressions[(int)FBExpression.Eyes_Look_Up_L] * 0.55f;
+            expressions[(int)FBExpression.Eyes_Look_Up_R] = expressions[(int)FBExpression.Eyes_Look_Up_R] * 0.55f;
+            expressions[(int)FBExpression.Eyes_Look_Down_L] = expressions[(int)FBExpression.Eyes_Look_Down_L] * 1.5f;
+            expressions[(int)FBExpression.Eyes_Look_Down_R] = expressions[(int)FBExpression.Eyes_Look_Down_R] * 1.5f;
 
-            expressions[FBExpression.Eyes_Look_Left_L] = expressions[FBExpression.Eyes_Look_Left_L] * 0.85f;
-            expressions[FBExpression.Eyes_Look_Right_L] = expressions[FBExpression.Eyes_Look_Right_L] * 0.85f;
-            expressions[FBExpression.Eyes_Look_Left_R] = expressions[FBExpression.Eyes_Look_Left_R] * 0.85f;
-            expressions[FBExpression.Eyes_Look_Right_R] = expressions[FBExpression.Eyes_Look_Right_R] * 0.85f;
+            expressions[(int)FBExpression.Eyes_Look_Left_L] = expressions[(int)FBExpression.Eyes_Look_Left_L] * 0.85f;
+            expressions[(int)FBExpression.Eyes_Look_Right_L] = expressions[(int)FBExpression.Eyes_Look_Right_L] * 0.85f;
+            expressions[(int)FBExpression.Eyes_Look_Left_R] = expressions[(int)FBExpression.Eyes_Look_Left_R] * 0.85f;
+            expressions[(int)FBExpression.Eyes_Look_Right_R] = expressions[(int)FBExpression.Eyes_Look_Right_R] * 0.85f;
 
             // Hack: turn rots to looks
             // Yitch = 29(left)-- > -29(right)
@@ -249,48 +224,57 @@ namespace QuestProModule.ALXR
 
             if (pitch_L > 0)
             {
-                expressions[FBExpression.Eyes_Look_Left_L] = Math.Min(1, (float)(pitch_L / 29.0)) * SRANIPAL_NORMALIZER;
-                expressions[FBExpression.Eyes_Look_Right_L] = 0;
+                expressions[(int)FBExpression.Eyes_Look_Left_L] = Math.Min(1, (float)(pitch_L / 29.0)) * SRANIPAL_NORMALIZER;
+                expressions[(int)FBExpression.Eyes_Look_Right_L] = 0;
             }
             else
             {
-                expressions[FBExpression.Eyes_Look_Left_L] = 0;
-                expressions[FBExpression.Eyes_Look_Right_L] = Math.Min(1, (float)((-pitch_L) / 29.0)) * SRANIPAL_NORMALIZER;
+                expressions[(int)FBExpression.Eyes_Look_Left_L] = 0;
+                expressions[(int)FBExpression.Eyes_Look_Right_L] = Math.Min(1, (float)((-pitch_L) / 29.0)) * SRANIPAL_NORMALIZER;
             }
 
             if (yaw_L > 0)
             {
-                expressions[FBExpression.Eyes_Look_Up_L] = Math.Min(1, (float)(yaw_L / 27.0)) * SRANIPAL_NORMALIZER;
-                expressions[FBExpression.Eyes_Look_Down_L] = 0;
+                expressions[(int)FBExpression.Eyes_Look_Up_L] = Math.Min(1, (float)(yaw_L / 27.0)) * SRANIPAL_NORMALIZER;
+                expressions[(int)FBExpression.Eyes_Look_Down_L] = 0;
             }
             else
             {
-                expressions[FBExpression.Eyes_Look_Up_L] = 0;
-                expressions[FBExpression.Eyes_Look_Down_L] = Math.Min(1, (float)((-yaw_L) / 27.0)) * SRANIPAL_NORMALIZER;
+                expressions[(int)FBExpression.Eyes_Look_Up_L] = 0;
+                expressions[(int)FBExpression.Eyes_Look_Down_L] = Math.Min(1, (float)((-yaw_L) / 27.0)) * SRANIPAL_NORMALIZER;
             }
 
 
             if (pitch_R > 0)
             {
-                expressions[FBExpression.Eyes_Look_Left_R] = Math.Min(1, (float)(pitch_R / 29.0)) * SRANIPAL_NORMALIZER;
-                expressions[FBExpression.Eyes_Look_Right_R] = 0;
+                expressions[(int)FBExpression.Eyes_Look_Left_R] = Math.Min(1, (float)(pitch_R / 29.0)) * SRANIPAL_NORMALIZER;
+                expressions[(int)FBExpression.Eyes_Look_Right_R] = 0;
             }
             else
             {
-                expressions[FBExpression.Eyes_Look_Left_R] = 0;
-                expressions[FBExpression.Eyes_Look_Right_R] = Math.Min(1, (float)((-pitch_R) / 29.0)) * SRANIPAL_NORMALIZER;
+                expressions[(int)FBExpression.Eyes_Look_Left_R] = 0;
+                expressions[(int)FBExpression.Eyes_Look_Right_R] = Math.Min(1, (float)((-pitch_R) / 29.0)) * SRANIPAL_NORMALIZER;
             }
             
             if (yaw_R > 0)
             {
-                expressions[FBExpression.Eyes_Look_Up_R] = Math.Min(1, (float)(yaw_R / 27.0)) * SRANIPAL_NORMALIZER;
-                expressions[FBExpression.Eyes_Look_Down_R] = 0;
+                expressions[(int)FBExpression.Eyes_Look_Up_R] = Math.Min(1, (float)(yaw_R / 27.0)) * SRANIPAL_NORMALIZER;
+                expressions[(int)FBExpression.Eyes_Look_Down_R] = 0;
             }
             else
             {
-                expressions[FBExpression.Eyes_Look_Up_R] = 0;
-                expressions[FBExpression.Eyes_Look_Down_R] = Math.Min(1, (float)((-yaw_R) / 27.0)) * SRANIPAL_NORMALIZER;
+                expressions[(int)FBExpression.Eyes_Look_Up_R] = 0;
+                expressions[(int)FBExpression.Eyes_Look_Down_R] = Math.Min(1, (float)((-yaw_R) / 27.0)) * SRANIPAL_NORMALIZER;
             }
+        }
+
+        float3 ALXRTypeToSystem(ALXRVector3f input)
+        {
+            return new float3(input.x, input.y, input.z);
+        }
+        floatQ ALXRTypeToSystem(ALXRQuaternionf input)
+        {
+            return new floatQ(input.x, input.y, input.z, input.w);
         }
 
         bool IsValid(float3 value) => IsValid(value.x) && IsValid(value.y) && IsValid(value.z);
@@ -314,19 +298,19 @@ namespace QuestProModule.ALXR
             switch (fbEye)
             {
                 case FBEye.Left:
-                    eyeRet.position = new float3(expressions[FBExpression.LeftPos_x], -expressions[FBExpression.LeftPos_y], expressions[FBExpression.LeftPos_z]);
-                    eyeRet.rotation = new floatQ(-expressions[FBExpression.LeftRot_x], -expressions[FBExpression.LeftRot_y], -expressions[FBExpression.LeftRot_z], expressions[FBExpression.LeftRot_w]);
-                    eyeRet.open = MathX.Max(0, expressions[FBExpression.Eyes_Closed_L]);
-                    eyeRet.squeeze = expressions[FBExpression.Lid_Tightener_L];
-                    eyeRet.wide = expressions[FBExpression.Upper_Lid_Raiser_L];
+                    eyeRet.position = ALXRTypeToSystem(alxrResult.facialEyeTracking.eyeGazePose0.position);
+                    eyeRet.rotation = ALXRTypeToSystem(alxrResult.facialEyeTracking.eyeGazePose0.orientation);
+                    eyeRet.open = MathX.Max(0, expressions[(int)FBExpression.Eyes_Closed_L]);
+                    eyeRet.squeeze = expressions[(int)FBExpression.Lid_Tightener_L];
+                    eyeRet.wide = expressions[(int)FBExpression.Upper_Lid_Raiser_L];
                     eyeRet.isValid = IsValid(eyeRet.position);
                     return eyeRet;
                 case FBEye.Right:
-                    eyeRet.position = new float3(expressions[FBExpression.RightPos_x], -expressions[FBExpression.RightPos_y], expressions[FBExpression.RightPos_z]);
-                    eyeRet.rotation = new floatQ(-expressions[FBExpression.RightRot_x], -expressions[FBExpression.RightRot_y], -expressions[FBExpression.RightRot_z], expressions[FBExpression.RightRot_w]);
-                    eyeRet.open = MathX.Max(0, expressions[FBExpression.Eyes_Closed_R]);
-                    eyeRet.squeeze = expressions[FBExpression.Lid_Tightener_R];
-                    eyeRet.wide = expressions[FBExpression.Upper_Lid_Raiser_R];
+                    eyeRet.position = ALXRTypeToSystem(alxrResult.facialEyeTracking.eyeGazePose1.position);
+                    eyeRet.rotation = ALXRTypeToSystem(alxrResult.facialEyeTracking.eyeGazePose1.orientation);
+                    eyeRet.open = MathX.Max(0, expressions[(int)FBExpression.Eyes_Closed_R]);
+                    eyeRet.squeeze = expressions[(int)FBExpression.Lid_Tightener_R];
+                    eyeRet.wide = expressions[(int)FBExpression.Upper_Lid_Raiser_R];
                     eyeRet.isValid = IsValid(eyeRet.position);
                     return eyeRet;
                 default:
@@ -340,44 +324,44 @@ namespace QuestProModule.ALXR
             mouth.IsDeviceActive = Engine.Current.InputInterface.VR_Active;
             mouth.IsTracking = Engine.Current.InputInterface.VR_Active;
 
-            mouth.JawOpen = expressions[FBExpression.Jaw_Drop] - expressions[FBExpression.Lips_Toward];
+            mouth.JawOpen = expressions[(int)FBExpression.Jaw_Drop] - expressions[(int)FBExpression.Lips_Toward];
 
             float JawLR;
 
             if (InvertJaw)
             {
-                JawLR = expressions[FBExpression.Jaw_Sideways_Left] - expressions[FBExpression.Jaw_Sideways_Right]; //Fixed inverted Jaw movement.
+                JawLR = expressions[(int)FBExpression.Jaw_Sideways_Left] - expressions[(int)FBExpression.Jaw_Sideways_Right]; //Fixed inverted Jaw movement.
             }
             else
             {
-                JawLR = expressions[FBExpression.Jaw_Sideways_Right] - expressions[FBExpression.Jaw_Sideways_Left]; //Fixed inverted Jaw movement.
+                JawLR = expressions[(int)FBExpression.Jaw_Sideways_Right] - expressions[(int)FBExpression.Jaw_Sideways_Left]; //Fixed inverted Jaw movement.
             }
 
             mouth.Jaw = new float3(
                 JawLR,
-                expressions[FBExpression.Jaw_Drop],
-                expressions[FBExpression.Jaw_Thrust]
+                expressions[(int)FBExpression.Jaw_Drop],
+                expressions[(int)FBExpression.Jaw_Thrust]
             );
 
-            mouth.LipUpperLeftRaise = expressions[FBExpression.Upper_Lip_Raiser_L];
-            mouth.LipUpperRightRaise = expressions[FBExpression.Upper_Lip_Raiser_R];
-            mouth.LipLowerLeftRaise = expressions[FBExpression.Lower_Lip_Depressor_L];
-            mouth.LipLowerRightRaise = expressions[FBExpression.Lower_Lip_Depressor_R];
+            mouth.LipUpperLeftRaise = expressions[(int)FBExpression.Upper_Lip_Raiser_L];
+            mouth.LipUpperRightRaise = expressions[(int)FBExpression.Upper_Lip_Raiser_R];
+            mouth.LipLowerLeftRaise = expressions[(int)FBExpression.Lower_Lip_Depressor_L];
+            mouth.LipLowerRightRaise = expressions[(int)FBExpression.Lower_Lip_Depressor_R];
 
-            var stretch = (expressions[FBExpression.Lip_Stretcher_L] + expressions[FBExpression.Lip_Stretcher_R]) / 2;
+            var stretch = (expressions[(int)FBExpression.Lip_Stretcher_L] + expressions[(int)FBExpression.Lip_Stretcher_R]) / 2;
             mouth.LipUpperHorizontal = stretch;
             mouth.LipLowerHorizontal = stretch;
 
-            mouth.MouthLeftSmileFrown = Math.Min(1, expressions[FBExpression.Lip_Corner_Puller_L] * 1.2f) - Math.Min(1, (expressions[FBExpression.Lip_Corner_Depressor_L] + expressions[FBExpression.Lip_Stretcher_L]) * SRANIPAL_NORMALIZER);//Math.Min(1, (expressions[FBExpression.Lip_Corner_Depressor_L]) * 1.5f);;
-            mouth.MouthRightSmileFrown = Math.Min(1, expressions[FBExpression.Lip_Corner_Puller_R] * 1.2f) - Math.Min(1, (expressions[FBExpression.Lip_Corner_Depressor_R] + expressions[FBExpression.Lip_Stretcher_R]) * SRANIPAL_NORMALIZER);//Math.Min(1, (expressions[FBExpression.Lip_Corner_Depressor_R]) * 1.5f);;
+            mouth.MouthLeftSmileFrown = Math.Min(1, expressions[(int)FBExpression.Lip_Corner_Puller_L] * 1.2f) - Math.Min(1, (expressions[(int)FBExpression.Lip_Corner_Depressor_L] + expressions[(int)FBExpression.Lip_Stretcher_L]) * SRANIPAL_NORMALIZER);//Math.Min(1, (expressions[(int)FBExpression.Lip_Corner_Depressor_L]) * 1.5f);;
+            mouth.MouthRightSmileFrown = Math.Min(1, expressions[(int)FBExpression.Lip_Corner_Puller_R] * 1.2f) - Math.Min(1, (expressions[(int)FBExpression.Lip_Corner_Depressor_R] + expressions[(int)FBExpression.Lip_Stretcher_R]) * SRANIPAL_NORMALIZER);//Math.Min(1, (expressions[(int)FBExpression.Lip_Corner_Depressor_R]) * 1.5f);;
             
-            mouth.MouthPout = (expressions[FBExpression.Lip_Pucker_L] + expressions[FBExpression.Lip_Pucker_R]) / 3;
+            mouth.MouthPout = (expressions[(int)FBExpression.Lip_Pucker_L] + expressions[(int)FBExpression.Lip_Pucker_R]) / 3;
 
-            // mouth.LipTopOverUnder = (expressions[FBExpression.Lip_Suck_LT] + expressions[FBExpression.Lip_Suck_RT]) / 2;
-            // mouth.LipBottomOverturn = (expressions[FBExpression.Lip_Suck_LB] + expressions[FBExpression.Lip_Suck_RB]) / 2;
+            // mouth.LipTopOverUnder = (expressions[(int)FBExpression.Lip_Suck_LT] + expressions[(int)FBExpression.Lip_Suck_RT]) / 2;
+            // mouth.LipBottomOverturn = (expressions[(int)FBExpression.Lip_Suck_LB] + expressions[(int)FBExpression.Lip_Suck_RB]) / 2;
 
-            mouth.LipTopOverturn = (expressions[FBExpression.Lips_Toward] + expressions[FBExpression.Lip_Funneler_LT] + expressions[FBExpression.Lip_Funneler_RT]) / 3;
-            mouth.LipBottomOverturn = (expressions[FBExpression.Lips_Toward] + expressions[FBExpression.Lip_Funneler_LB] + expressions[FBExpression.Lip_Funneler_RB]) / 3;
+            mouth.LipTopOverturn = (expressions[(int)FBExpression.Lips_Toward] + expressions[(int)FBExpression.Lip_Funneler_LT] + expressions[(int)FBExpression.Lip_Funneler_RT]) / 3;
+            mouth.LipBottomOverturn = (expressions[(int)FBExpression.Lips_Toward] + expressions[(int)FBExpression.Lip_Funneler_LB] + expressions[(int)FBExpression.Lip_Funneler_RB]) / 3;
 
             //if (UnifiedTrackingData.LatestLipData.LatestShapes[(int)UnifiedExpression.MouthSmileLeft] > UnifiedTrackingData.LatestLipData.LatestShapes[(int)UnifiedExpression.MouthSadLeft])
             //    UnifiedTrackingData.LatestLipData.LatestShapes[(int)UnifiedExpression.MouthSadLeft] /= 1 + UnifiedTrackingData.LatestLipData.LatestShapes[(int)UnifiedExpression.MouthSmileLeft];
@@ -389,8 +373,8 @@ namespace QuestProModule.ALXR
             //else if (UnifiedTrackingData.LatestLipData.LatestShapes[(int)UnifiedExpression.MouthSmileRight] < UnifiedTrackingData.LatestLipData.LatestShapes[(int)UnifiedExpression.MouthSadRight])
             //    UnifiedTrackingData.LatestLipData.LatestShapes[(int)UnifiedExpression.MouthSmileRight] /= 1 + UnifiedTrackingData.LatestLipData.LatestShapes[(int)UnifiedExpression.MouthSadRight];
 
-            mouth.CheekLeftPuffSuck = expressions[FBExpression.Cheek_Puff_L] - expressions[FBExpression.Cheek_Suck_L];
-            mouth.CheekRightPuffSuck = (expressions[FBExpression.Cheek_Puff_R]) - (expressions[FBExpression.Cheek_Suck_R]);
+            mouth.CheekLeftPuffSuck = expressions[(int)FBExpression.Cheek_Puff_L] - expressions[(int)FBExpression.Cheek_Suck_L];
+            mouth.CheekRightPuffSuck = (expressions[(int)FBExpression.Cheek_Puff_R]) - (expressions[(int)FBExpression.Cheek_Suck_R]);
         }
 
         public float GetFaceExpression(int expressionIndex)
@@ -410,12 +394,8 @@ namespace QuestProModule.ALXR
             try
             {
                 cancellationTokenSource.Cancel();
-                tcpThread.Abort();
+                LibALXR.LibALXR.alxr_destroy();
                 cancellationTokenSource.Dispose();
-                stream.Close();
-                stream.Dispose();
-                client.Close();
-                client.Dispose();
             }
             catch (Exception ex)
             {
@@ -427,6 +407,44 @@ namespace QuestProModule.ALXR
         public void JawState(bool input)
         {
             InvertJaw = input;
+        }
+        private static ALXRClientCtx CreateALXRClientCtx()
+        {
+            return new ALXRClientCtx
+            {
+                inputSend = (ref ALXRTrackingInfo data) => { },
+                viewsConfigSend = (ref ALXREyeInfo eyeInfo) => { },
+                pathStringToHash = (path) => { return (ulong)path.GetHashCode(); },
+                timeSyncSend = (ref ALXRTimeSync data) => { },
+                videoErrorReportSend = () => { },
+                batterySend = (a, b, c) => { },
+                setWaitingNextIDR = a => { },
+                requestIDR = () => { },
+                graphicsApi = config.GraphicsApi,
+                decoderType = ALXRDecoderType.D311VA,
+                displayColorSpace = ALXRColorSpace.Default,
+                facialTracking = config.FacialTrackingExt,
+                eyeTracking = config.EyeTrackingExt,
+                trackingServerPortNo = LibALXR.LibALXR.TrackingServerDefaultPortNo,
+                verbose = false,
+                disableLinearizeSrgb = false,
+                noSuggestedBindings = true,
+                noServerFramerateLock = false,
+                noFrameSkip = false,
+                disableLocalDimming = true,
+                headlessSession = false,
+                simulateHeadless = false,
+                noFTServer = true,
+                noPassthrough = true,
+                noHandTracking = !config.EnableHandleTracking,
+                firmwareVersion = new ALXRVersion
+                {
+                    // only relevant for android clients.
+                    major = 0,
+                    minor = 0,
+                    patch = 0
+                }
+            };
         }
     }
 }
