@@ -47,7 +47,7 @@ namespace QuestProModule
 
         public override string Name => "QuestPro4Resonite";
 		public override string Author => "dfgHiatus & Geenz & Sinduy & Dante Tucker & ScarsTRF";
-		public override string Version => "1.0.4";
+		public override string Version => "2.0.0";
 		public override string Link => "https://github.com/sjsanjsrh/QuestPro4Resonite";
 		public override void OnEngineInit()
 		{
@@ -62,7 +62,7 @@ namespace QuestProModule
         [HarmonyPatch(new Type[] { typeof(Engine) })]
         public class InputInterfaceCtorPatch
         {
-            public static async void Postfix(InputInterface __instance)
+            public static void Postfix(InputInterface __instance)
             {
                 try
                 {
@@ -71,6 +71,7 @@ namespace QuestProModule
                     if (!Path.IsPathRooted(path))
                     {
                         path = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "..", path);
+                        path = Path.GetFullPath(path);
                     }
                     Msg($"Loading libalxr from {path}");
                     qpm.Initialize(path);
@@ -131,6 +132,7 @@ namespace QuestProModule
                 if (!Path.IsPathRooted(path))
                 {
                     path = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "..", path);
+                    path = Path.GetFullPath(path);
                 }
                 UniLog.Log($"Loading libalxr from {path}");
                 qpm.Initialize(path);

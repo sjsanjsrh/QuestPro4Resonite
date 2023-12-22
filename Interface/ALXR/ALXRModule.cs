@@ -12,8 +12,8 @@ namespace QuestProModule.ALXR
 {
     public class ALXRModule : IQuestProModule
     {
-        private CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
-        private bool connected = false;
+        private CancellationTokenSource cancellationTokenSource;
+        private bool _connected = false;
 
         private bool InvertJaw;
 
@@ -23,7 +23,7 @@ namespace QuestProModule.ALXR
 
         private double pitch_L, yaw_L, pitch_R, yaw_R; // Eye rotations
 
-        private bool _connected = false;
+        private Thread updateThread;
         public bool Connected => _connected;
 
         public class Config
@@ -40,33 +40,20 @@ namespace QuestProModule.ALXR
         {
             if (!LibALXR.LibALXR.AddDllSearchPath(dlldir))
             {
-                UniLog.Error($"[libalxr] unmanaged library path to search failed to be set.");
+                ResoniteMod.Error($"unmanaged laxrlib path to search failed to be set.");
                 return false;
             }
             config.DLLDir = dlldir;
             try
             {
-                LibALXR.LibALXR.alxr_set_log_custom_output(ALXRLogOptions.None, (level, output, len) =>
-                {
-                    var fullMsg = $"[libalxr] {output}";
-                    switch (level)
-                    {
-                        case ALXRLogLevel.Info:
-                            ResoniteMod.Msg(fullMsg);
-                            break;
-                        case ALXRLogLevel.Warning:
-                            ResoniteMod.Warn(fullMsg);
-                            break;
-                        case ALXRLogLevel.Error:
-                            ResoniteMod.Error(fullMsg);
-                            break;
-                    }
-                });
-
                 cancellationTokenSource = new CancellationTokenSource();
+
+                updateThread = new Thread(Update);
+                updateThread.Start();
             }
             catch (Exception e)
             {
+                ResoniteMod.Error("Exception when initializing Quest Pro");
                 UniLog.Error(e.Message);
                 return false;
             }
@@ -84,9 +71,27 @@ namespace QuestProModule.ALXR
                 {
                     return false;
                 }
+
+                LibALXR.LibALXR.alxr_set_log_custom_output(ALXRLogOptions.None, (level, output, len) =>
+                {
+                    var fullMsg = $"[libalxr] {output}";
+                    switch (level)
+                    {
+                        case ALXRLogLevel.Info:
+                            ResoniteMod.Msg(fullMsg);
+                            break;
+                        case ALXRLogLevel.Warning:
+                            ResoniteMod.Warn(fullMsg);
+                            break;
+                        case ALXRLogLevel.Error:
+                            ResoniteMod.Error(fullMsg);
+                            break;
+                    }
+                });
             }
             catch (Exception e)
             {
+                ResoniteMod.Error("Exception when connecting to Quest Pro");
                 UniLog.Error(e.Message);
                 return false;
             }
@@ -99,7 +104,7 @@ namespace QuestProModule.ALXR
             {
                 if (!ConnectALXR())
                 {
-                    UniLog.Error("[libxr] failed connect to Quest Pro");
+                    ResoniteMod.Error("failed connect to Quest Pro");
                     Thread.Sleep(1000);
                 }
                 while (!cancellationTokenSource.IsCancellationRequested)
@@ -122,43 +127,31 @@ namespace QuestProModule.ALXR
                     }
                     catch (SocketException e)
                     {
+                        ResoniteMod.Error("SocketException when updating Quest Pro");
                         UniLog.Error(e.Message);
                         _connected = false;
                         Thread.Sleep(1000);
                     }
                 }
             }
+            ResoniteMod.Warn("update thread exited");
         }
     
         private void PrepareUpdate()
         {
-            //// Eye Expressions
+            // Eye Expressions
 
-            //double q_x = expressions[(int)FBExpression.LeftRot_x];
-            //double q_y = expressions[(int)FBExpression.LeftRot_y];
-            //double q_z = expressions[(int)FBExpression.LeftRot_z];
-            //double q_w = expressions[(int)FBExpression.LeftRot_w];
+            var q = alxrResult.facialEyeTracking.eyeGazePose0.orientation;
 
-            //double yaw = Math.Atan2(2.0 * (q_y * q_z + q_w * q_x), q_w * q_w - q_x * q_x - q_y * q_y + q_z * q_z);
-            //double pitch = Math.Asin(-2.0 * (q_x * q_z - q_w * q_y));
-            //// Not needed for eye tracking
-            //// double roll = Math.Atan2(2.0 * (q_x * q_y + q_w * q_z), q_w * q_w + q_x * q_x - q_y * q_y - q_z * q_z); 
+            // From radians
+            pitch_L = 180.0 / Math.PI * q.Pitch; 
+            yaw_L = 180.0 / Math.PI * q.Yaw;
 
-            //// From radians
-            //pitch_L = 180.0 / Math.PI * pitch; 
-            //yaw_L = 180.0 / Math.PI * yaw;
+            q = alxrResult.facialEyeTracking.eyeGazePose1.orientation;
 
-            //q_x = expressions[(int)FBExpression.RightRot_x];
-            //q_y = expressions[(int)FBExpression.RightRot_y];
-            //q_z = expressions[(int)FBExpression.RightRot_z];
-            //q_w = expressions[(int)FBExpression.RightRot_w];
-
-            //yaw = Math.Atan2(2.0 * (q_y * q_z + q_w * q_x), q_w * q_w - q_x * q_x - q_y * q_y + q_z * q_z);
-            //pitch = Math.Asin(-2.0 * (q_x * q_z - q_w * q_y));
-
-            //// From radians
-            //pitch_R = 180.0 / Math.PI * pitch; 
-            //yaw_R = 180.0 / Math.PI * yaw;
+            // From radians
+            pitch_R = 180.0 / Math.PI * q.Pitch;
+            yaw_R = 180.0 / Math.PI * q.Yaw;
 
             // Face Expressions
 
@@ -394,13 +387,17 @@ namespace QuestProModule.ALXR
             try
             {
                 cancellationTokenSource.Cancel();
-                LibALXR.LibALXR.alxr_destroy();
+                updateThread.Abort();
                 cancellationTokenSource.Dispose();
+                LibALXR.LibALXR.alxr_destroy();
             }
             catch (Exception ex)
             {
-                UniLog.Log("Exception when running teardown.");
+                ResoniteMod.Error("Exception when running teardown.");
                 UniLog.Error(ex.ToString());
+            }finally
+            {
+                _connected = false;
             }
         }
 
