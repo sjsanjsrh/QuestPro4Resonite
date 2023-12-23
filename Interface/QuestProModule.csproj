@@ -58,6 +58,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ALXR\ALXRModule.cs" />
+    <Compile Include="ALXR\ALXRModuleLocal.cs" />
     <Compile Include="EyeDevice.cs" />
     <Compile Include="QuestProMod.cs" />
     <Compile Include="MouthDevice.cs" />

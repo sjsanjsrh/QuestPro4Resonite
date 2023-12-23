@@ -15,7 +15,7 @@ namespace QuestProModule
     public class QuestProMod : ResoniteMod
     {
 		[AutoRegisterConfigKey]
-		private readonly static ModConfigurationKey<string> libalxr_path = new ModConfigurationKey<string>("libalxr_path", "path of libalxr", () => "libalxr-win-x64");
+        private readonly static ModConfigurationKey<string> QuestProIP = new ModConfigurationKey<string>("quest_pro_IP", "Quest Pro IP. This can be found in ALXR's settings, requires a restart to take effect", () => "127.0.0.1");
 
         [AutoRegisterConfigKey]
         private readonly static ModConfigurationKey<float> EyeOpennessExponent = new ModConfigurationKey<float>("quest_pro_eye_open_exponent", "Exponent to apply to eye openness.  Can be updated at runtime.  Useful for applying different curves for how open your eyes are.", () => 1.0f);
@@ -28,14 +28,17 @@ namespace QuestProModule
 
         [AutoRegisterConfigKey]
         private static readonly ModConfigurationKey<float> PupilSize = new ModConfigurationKey<float>("quest_pro_eye_pupil_size", "Used to adjust pupil size to a custom static size. (Best values are between 0.2 and 0.8, though might vary.", () => 0.5f);
-
+        
         [AutoRegisterConfigKey]
         private static readonly ModConfigurationKey<bool> InvertJaw = new ModConfigurationKey<bool>("quest_pro_Invert_Jaw", "Value to invert Jaw Left/Right movement. (Only use if your jaw is inverted from your movements)", () => false);
 
         [AutoRegisterConfigKey]
+        private static readonly ModConfigurationKey<bool> LocalMode = new ModConfigurationKey<bool>("local_mode", "Mode to run without apk installation (do not check it as it does not work yet)", () => false);
+
+        [AutoRegisterConfigKey]
         private static readonly ModConfigurationKey<bool> ResetEventInput = new ModConfigurationKey<bool>("quest_pro_reset_event", "Press to reinitialize the Quest Pro Module. (ONLY PRESS ONCE)", () => false);
 
-        public static ALXRModule qpm;
+        public static IQuestProModule qpm;
 
         public static EyeDevice edm;
 
@@ -66,15 +69,16 @@ namespace QuestProModule
             {
                 try
                 {
-                    qpm = new ALXRModule();
-                    var path = _config.GetValue(libalxr_path);
-                    if (!Path.IsPathRooted(path))
+                    if (_config.GetValue(LocalMode))
                     {
-                        path = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "..", path);
-                        path = Path.GetFullPath(path);
+                        qpm = new ALXRModuleLocal();
                     }
-                    Msg($"Loading libalxr from {path}");
-                    qpm.Initialize(path);
+                    else
+                    {
+                        qpm = new ALXRModule();
+                    }
+                    
+                    qpm.Initialize(_config.GetValue(QuestProIP));
                     qpm.JawState(_config.GetValue(InvertJaw));
 
                     edm = new EyeDevice();
@@ -128,14 +132,10 @@ namespace QuestProModule
             {
                 qpm.Teardown();
                 Thread.Sleep(1000);
-                var path = _config.GetValue(libalxr_path);
-                if (!Path.IsPathRooted(path))
+                if(@event.Config.TryGetValue(QuestProIP, out string ip))
                 {
-                    path = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "..", path);
-                    path = Path.GetFullPath(path);
+                    qpm.Initialize(ip);
                 }
-                UniLog.Log($"Loading libalxr from {path}");
-                qpm.Initialize(path);
             }
 
             if (@event.Key == InvertJaw)
