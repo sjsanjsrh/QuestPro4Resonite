@@ -33,5 +33,7 @@ namespace QuestProModule
         public void JawState(bool input);
 
         public EyeGazeData GetEyeData(FBEye fbEye);
+
+        public void GetFacialExpressions(FrooxEngine.Mouth mouth);
     }
 }
