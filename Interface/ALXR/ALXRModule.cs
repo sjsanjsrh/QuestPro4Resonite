@@ -373,10 +373,9 @@ namespace QuestProModule.ALXR
             //    UnifiedTrackingData.LatestLipData.LatestShapes[(int)UnifiedExpression.MouthSmileRight] /= 1 + UnifiedTrackingData.LatestLipData.LatestShapes[(int)UnifiedExpression.MouthSadRight];
 
             mouth.CheekLeftPuffSuck = expressions[(int)FBExpression2.Cheek_Puff_L] - expressions[(int)FBExpression2.Cheek_Suck_L];
-            mouth.CheekRightPuffSuck = (expressions[(int)FBExpression2.Cheek_Puff_R]) - (expressions[(int)FBExpression2.Cheek_Suck_R]);
+            mouth.CheekRightPuffSuck = expressions[(int)FBExpression2.Cheek_Puff_R] - expressions[(int)FBExpression2.Cheek_Suck_R];
 
-            //mouth.Tongue = new float3(0, 0, expressions[(int)FBExpression2.Tongue_Out] - expressions[(int)FBExpression2.Tongue_Retreat]);
-            mouth.Tongue = new float3(0, 0, expressions[(int)FBExpression2.Tongue_Retreat]*2);
+            mouth.Tongue = new float3(0, 0, expressions[(int)FBExpression2.Tongue_Out] - expressions[(int)FBExpression2.Tongue_Retreat]);
         }
 
         public float GetFaceExpression(int expressionIndex)
