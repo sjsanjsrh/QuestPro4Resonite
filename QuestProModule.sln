@@ -5,16 +5,22 @@ VisualStudioVersion = 17.2.32602.215
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QuestProModule", "Interface\QuestProModule.csproj", "{0322B2EF-7452-479D-BAE2-FCAB75033337}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "libalxr-sharp", "libalxr-sharp\libalxr-sharp.csproj", "{959148AA-FC51-44EE-89B2-E25C06ADB597}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{0322B2EF-7452-479D-BAE2-FCAB75033337}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{0322B2EF-7452-479D-BAE2-FCAB75033337}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{0322B2EF-7452-479D-BAE2-FCAB75033337}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{0322B2EF-7452-479D-BAE2-FCAB75033337}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0322B2EF-7452-479D-BAE2-FCAB75033337}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{0322B2EF-7452-479D-BAE2-FCAB75033337}.Debug|Any CPU.Build.0 = Debug|x64
+		{0322B2EF-7452-479D-BAE2-FCAB75033337}.Release|Any CPU.ActiveCfg = Release|x64
+		{0322B2EF-7452-479D-BAE2-FCAB75033337}.Release|Any CPU.Build.0 = Release|x64
+		{959148AA-FC51-44EE-89B2-E25C06ADB597}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{959148AA-FC51-44EE-89B2-E25C06ADB597}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{959148AA-FC51-44EE-89B2-E25C06ADB597}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{959148AA-FC51-44EE-89B2-E25C06ADB597}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

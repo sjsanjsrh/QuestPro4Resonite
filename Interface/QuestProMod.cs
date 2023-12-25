@@ -5,13 +5,17 @@ using QuestProModule.ALXR;
 using Elements.Core;
 using System; 
 using System.Threading;
+using System.IO;
+using System.Reflection;
+using System.Threading.Tasks;
+using System.Diagnostics;
 
 namespace QuestProModule
 {
     public class QuestProMod : ResoniteMod
     {
 		[AutoRegisterConfigKey]
-		private readonly static ModConfigurationKey<string> QuestProIP = new ModConfigurationKey<string>("quest_pro_IP", "Quest Pro IP. This can be found in ALXR's settings, requires a restart to take effect", () => "127.0.0.1");
+        private readonly static ModConfigurationKey<string> QuestProIP = new ModConfigurationKey<string>("quest_pro_IP", "Quest Pro IP. This can be found in ALXR's settings, requires a restart to take effect", () => "127.0.0.1");
 
         [AutoRegisterConfigKey]
         private readonly static ModConfigurationKey<float> EyeOpennessExponent = new ModConfigurationKey<float>("quest_pro_eye_open_exponent", "Exponent to apply to eye openness.  Can be updated at runtime.  Useful for applying different curves for how open your eyes are.", () => 1.0f);
@@ -24,14 +28,17 @@ namespace QuestProModule
 
         [AutoRegisterConfigKey]
         private static readonly ModConfigurationKey<float> PupilSize = new ModConfigurationKey<float>("quest_pro_eye_pupil_size", "Used to adjust pupil size to a custom static size. (Best values are between 0.2 and 0.8, though might vary.", () => 0.5f);
-
+        
         [AutoRegisterConfigKey]
         private static readonly ModConfigurationKey<bool> InvertJaw = new ModConfigurationKey<bool>("quest_pro_Invert_Jaw", "Value to invert Jaw Left/Right movement. (Only use if your jaw is inverted from your movements)", () => false);
 
         [AutoRegisterConfigKey]
+        private static readonly ModConfigurationKey<bool> LocalMode = new ModConfigurationKey<bool>("local_mode", "Mode to run without apk installation (do not check it as it does not work yet)", () => false);
+
+        [AutoRegisterConfigKey]
         private static readonly ModConfigurationKey<bool> ResetEventInput = new ModConfigurationKey<bool>("quest_pro_reset_event", "Press to reinitialize the Quest Pro Module. (ONLY PRESS ONCE)", () => false);
 
-        public static ALXRModule qpm;
+        public static IQuestProModule qpm;
 
         public static EyeDevice edm;
 
@@ -43,7 +50,7 @@ namespace QuestProModule
 
         public override string Name => "QuestPro4Resonite";
 		public override string Author => "dfgHiatus & Geenz & Sinduy & Dante Tucker & ScarsTRF";
-		public override string Version => "1.0.4";
+		public override string Version => "2.0.0";
 		public override string Link => "https://github.com/sjsanjsrh/QuestPro4Resonite";
 		public override void OnEngineInit()
 		{
@@ -62,13 +69,20 @@ namespace QuestProModule
             {
                 try
                 {
-                    qpm = new ALXRModule();
-
-                    _ = qpm.Initialize(_config.GetValue(QuestProIP));
+                    if (_config.GetValue(LocalMode))
+                    {
+                        qpm = new ALXRModuleLocal();
+                    }
+                    else
+                    {
+                        qpm = new ALXRModule();
+                    }
+                    
+                    qpm.Initialize(_config.GetValue(QuestProIP));
                     qpm.JawState(_config.GetValue(InvertJaw));
 
                     edm = new EyeDevice();
-                    
+
                     if (_config.TryGetValue(PupilSize, out float scale))
                     {
                         scale = scale * 0.01f;
@@ -83,9 +97,6 @@ namespace QuestProModule
                     Warn("Module failed to initiallize.");
                     Warn(ex.ToString());
                 }
-
-                Engine.Current.OnShutdown += () => qpm.Teardown();
-                Engine.Current.OnShutdown += () => qpm = null; //Used to allow the game to close
             }
         }
 
@@ -121,7 +132,10 @@ namespace QuestProModule
             {
                 qpm.Teardown();
                 Thread.Sleep(1000);
-                _ = qpm.Initialize(_config.GetValue(QuestProIP));
+                if(@event.Config.TryGetValue(QuestProIP, out string ip))
+                {
+                    qpm.Initialize(ip);
+                }
             }
 
             if (@event.Key == InvertJaw)

@@ -6,167 +6,148 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using LibALXR;
-using System.Runtime.InteropServices;
+using ResoniteModLoader;
 
 namespace QuestProModule.ALXR
 {
-    public class ALXRModule : IQuestProModule
+    public class ALXRModuleLocal : IQuestProModule
     {
-        private IPAddress localAddr;
-        private const int DEFAULT_PORT = 49192;
-        
-        private TcpClient client;
-        private NetworkStream stream;
-        private Thread tcpThread;
         private CancellationTokenSource cancellationTokenSource;
-        private bool connected = false;
+        private bool _connected = false;
 
         private bool InvertJaw;
 
-        private const int NATURAL_EXPRESSIONS_COUNT = 63;
         private const float SRANIPAL_NORMALIZER = 0.75f;
-        private ALXRFacialEyePacket packet;
-        private byte[] rawExpressions = new byte[Marshal.SizeOf<ALXRFacialEyePacket>()];
+        private ALXRProcessFrameResult alxrResult;
         private float[] expressions = new float[(int)FBExpression2.Max];
 
         private double pitch_L, yaw_L, pitch_R, yaw_R; // Eye rotations
 
-        public bool Connected
-        { get { return connected; } }
+        private Thread updateThread;
+        public bool Connected => _connected;
 
-        public async Task<bool> Initialize(string ipconfig)
+        public class Config
         {
+            public string DLLDir { get; set; } = "";
+            public ALXRGraphicsApi GraphicsApi { get; set; } = ALXRGraphicsApi.Auto;
+            public ALXRFacialExpressionType FacialTrackingExt { get; set; } = ALXRFacialExpressionType.FB_V2;
+            public ALXREyeTrackingType EyeTrackingExt { get; set; } = ALXREyeTrackingType.Auto;
+            public bool EnableHandleTracking { get; set; } = true;
+        }
+        static Config config = new Config();
+
+        public Task<bool> Initialize(string dlldir)
+        {
+            //if (!LibALXR.LibALXR.AddDllSearchPath(dlldir))
+            //{
+            //    ResoniteMod.Error($"unmanaged laxrlib path to search failed to be set.");
+            //    return Task.FromResult(false);
+            //}
+            //config.DLLDir = dlldir;
             try
             {
-                localAddr = IPAddress.Parse(ipconfig);
-
                 cancellationTokenSource = new CancellationTokenSource();
 
-                UniLog.Log("Attempting to connect to TCP socket.");
-                var connected = await ConnectToTCP(); // This should not block the main thread anymore...?
-            } 
+                updateThread = new Thread(Update);
+                updateThread.Start();
+            }
             catch (Exception e)
             {
+                ResoniteMod.Error("Exception when initializing Quest Pro");
                 UniLog.Error(e.Message);
-                return false;
+                return Task.FromResult(false);
             }
 
-            if (connected) 
-            {
-                tcpThread = new Thread(Update);
-                tcpThread.Start();
-                return true;
-            }
-
-            return false;
+            return Task.FromResult(true);
         }
 
-        private async Task<bool> ConnectToTCP()
+        private bool ConnectALXR()
         {
             try
             {
-                client = new TcpClient();
-                UniLog.Log($"Trying to establish a Quest Pro connection at {localAddr}:{DEFAULT_PORT}...");
-
-                await client.ConnectAsync(localAddr, DEFAULT_PORT);
-
-                if (client.Connected)
+                var ctx = CreateALXRClientCtx();
+                var sysProperties = new ALXRSystemProperties();
+                if (!LibALXR.LibALXR.alxr_init(ref ctx, out sysProperties))
                 {
-                    UniLog.Log("Connected to Quest Pro!");
-
-                    stream = client.GetStream();
-                    connected = true;
-
-                    return true;
-                } 
-                else
-                {
-                    UniLog.Error("Couldn't connect!");
                     return false;
                 }
+
+                LibALXR.LibALXR.alxr_set_log_custom_output(ALXRLogOptions.None, (level, output, len) =>
+                {
+                    var fullMsg = $"[libalxr] {output}";
+                    switch (level)
+                    {
+                        case ALXRLogLevel.Info:
+                            ResoniteMod.Msg(fullMsg);
+                            break;
+                        case ALXRLogLevel.Warning:
+                            ResoniteMod.Warn(fullMsg);
+                            break;
+                        case ALXRLogLevel.Error:
+                            ResoniteMod.Error(fullMsg);
+                            break;
+                    }
+                });
             }
             catch (Exception e)
             {
+                ResoniteMod.Error("Exception when connecting to Quest Pro");
                 UniLog.Error(e.Message);
                 return false;
             }
+            return true;
         }
 
         public void Update()
         {
             while (!cancellationTokenSource.IsCancellationRequested)
             {
-                try
+                if (!ConnectALXR())
                 {
-                    // Attempt reconnection if needed
-                    if (!connected || stream == null)
-                    {
-                        ConnectToTCP().RunSynchronously();
-                    }
-
-                    // If the connection was unsuccessful, wait a bit and try again
-                    if (stream == null)
-                    {
-                        UniLog.Warning("Didn't reconnect to the Quest Pro just yet! Trying again...");
-                        return;
-                    }
-
-                    if (!stream.CanRead)
-                    {
-                        UniLog.Warning("Can't read from the Quest Pro network stream just yet! Trying again...");
-                        return;
-                    }
-
-                    int offset = 0;
-                    int readBytes;
-                    do
-                    {
-                        readBytes = stream.Read(rawExpressions, offset, rawExpressions.Length - offset);
-                        offset += readBytes;
-                    }
-                    while (readBytes > 0 && offset < rawExpressions.Length);
-
-                    if (offset < rawExpressions.Length && connected)
-                    {
-                        UniLog.Warning("End of stream! Reconnecting...");
-                        Thread.Sleep(1000);
-                        connected = false;
-                        try
-                        {
-                            stream.Close();
-                        }
-                        catch (SocketException e)
-                        {
-                            UniLog.Error(e.Message);
-                            Thread.Sleep(1000);
-                        }
-                    }
-
-                    packet = ALXRFacialEyePacket.ReadPacket(rawExpressions);
-                    packet.ExpressionWeightSpan.CopyTo(expressions);
-
-                    // Preprocess our expressions per Meta's Documentation
-                    PrepareUpdate();
-                }
-                catch (SocketException e)
-                {
-                    UniLog.Error(e.Message);
+                    ResoniteMod.Error("failed connect to Quest Pro");
                     Thread.Sleep(1000);
                 }
-            }         
+                while (!cancellationTokenSource.IsCancellationRequested)
+                {
+                    try
+                    {
+                        LibALXR.LibALXR.alxr_process_frame2(ref alxrResult);
+                        alxrResult.facialEyeTracking.ExpressionWeightSpan.CopyTo(expressions);
+                        if (!LibALXR.LibALXR.alxr_is_session_running())
+                        {
+                            Thread.Sleep(250);
+                            _connected = false;
+                        }
+                        else
+                        {
+                            _connected = true;
+                        }
+                        // Preprocess our expressions per Meta's Documentation
+                        PrepareUpdate();
+                    }
+                    catch (SocketException e)
+                    {
+                        ResoniteMod.Error("SocketException when updating Quest Pro");
+                        UniLog.Error(e.Message);
+                        _connected = false;
+                        Thread.Sleep(1000);
+                    }
+                }
+            }
+            ResoniteMod.Warn("update thread exited");
         }
     
         private void PrepareUpdate()
         {
             // Eye Expressions
 
-            var q = packet.eyeGazePose0.orientation;
+            var q = alxrResult.facialEyeTracking.eyeGazePose0.orientation;
 
             // From radians
-            pitch_L = 180.0 / Math.PI * q.Pitch;
+            pitch_L = 180.0 / Math.PI * q.Pitch; 
             yaw_L = 180.0 / Math.PI * q.Yaw;
 
-            q = packet.eyeGazePose1.orientation;
+            q = alxrResult.facialEyeTracking.eyeGazePose1.orientation;
 
             // From radians
             pitch_R = 180.0 / Math.PI * q.Pitch;
@@ -176,7 +157,7 @@ namespace QuestProModule.ALXR
 
             // Eyelid edge case, eyes are actually closed now
             if (expressions[(int)FBExpression2.Eyes_Look_Down_L] == expressions[(int)FBExpression2.Eyes_Look_up_L] && expressions[(int)FBExpression2.Eyes_Closed_L] > 0.25f)
-            {
+            { 
                 expressions[(int)FBExpression2.Eyes_Closed_L] = 0; // 0.9f - (expressions[(int)FBExpression2.Lid_Tightener_L] * 3);
             }
             else
@@ -186,7 +167,7 @@ namespace QuestProModule.ALXR
 
             // Another eyelid edge case
             if (expressions[(int)FBExpression2.Eyes_Look_Down_R] == expressions[(int)FBExpression2.Eyes_Look_up_R] && expressions[(int)FBExpression2.Eyes_Closed_R] > 0.25f)
-            {
+            { 
                 expressions[(int)FBExpression2.Eyes_Closed_R] = 0; // 0.9f - (expressions[(int)FBExpression2.Lid_Tightener_R] * 3);
             }
             else
@@ -267,7 +248,7 @@ namespace QuestProModule.ALXR
                 expressions[(int)FBExpression2.Eyes_Look_Left_R] = 0;
                 expressions[(int)FBExpression2.Eyes_Look_Right_R] = Math.Min(1, (float)((-pitch_R) / 29.0)) * SRANIPAL_NORMALIZER;
             }
-
+            
             if (yaw_R > 0)
             {
                 expressions[(int)FBExpression2.Eyes_Look_up_R] = Math.Min(1, (float)(yaw_R / 27.0)) * SRANIPAL_NORMALIZER;
@@ -279,6 +260,7 @@ namespace QuestProModule.ALXR
                 expressions[(int)FBExpression2.Eyes_Look_Down_R] = Math.Min(1, (float)((-yaw_R) / 27.0)) * SRANIPAL_NORMALIZER;
             }
         }
+
         float3 ALXRTypeToSystem(ALXRVector3f input)
         {
             return new float3(input.x, input.y, input.z);
@@ -287,6 +269,7 @@ namespace QuestProModule.ALXR
         {
             return new floatQ(input.x, input.y, input.z, input.w);
         }
+
         bool IsValid(float3 value) => IsValid(value.x) && IsValid(value.y) && IsValid(value.z);
 
         bool IsValid(float value) => !float.IsInfinity(value) && !float.IsNaN(value);
@@ -297,16 +280,16 @@ namespace QuestProModule.ALXR
             switch (fbEye)
             {
                 case FBEye.Left:
-                    eyeRet.position = ALXRTypeToSystem(packet.eyeGazePose0.position);
-                    eyeRet.rotation = ALXRTypeToSystem(packet.eyeGazePose0.orientation);
+                    eyeRet.position = ALXRTypeToSystem(alxrResult.facialEyeTracking.eyeGazePose0.position);
+                    eyeRet.rotation = ALXRTypeToSystem(alxrResult.facialEyeTracking.eyeGazePose0.orientation);
                     eyeRet.open = MathX.Max(0, expressions[(int)FBExpression2.Eyes_Closed_L]);
                     eyeRet.squeeze = expressions[(int)FBExpression2.Lid_Tightener_L];
                     eyeRet.wide = expressions[(int)FBExpression2.Upper_Lid_Raiser_L];
                     eyeRet.isValid = IsValid(eyeRet.position);
                     return eyeRet;
                 case FBEye.Right:
-                    eyeRet.position = ALXRTypeToSystem(packet.eyeGazePose1.position);
-                    eyeRet.rotation = ALXRTypeToSystem(packet.eyeGazePose1.orientation);
+                    eyeRet.position = ALXRTypeToSystem(alxrResult.facialEyeTracking.eyeGazePose1.position);
+                    eyeRet.rotation = ALXRTypeToSystem(alxrResult.facialEyeTracking.eyeGazePose1.orientation);
                     eyeRet.open = MathX.Max(0, expressions[(int)FBExpression2.Eyes_Closed_R]);
                     eyeRet.squeeze = expressions[(int)FBExpression2.Lid_Tightener_R];
                     eyeRet.wide = expressions[(int)FBExpression2.Upper_Lid_Raiser_R];
@@ -373,9 +356,7 @@ namespace QuestProModule.ALXR
             //    UnifiedTrackingData.LatestLipData.LatestShapes[(int)UnifiedExpression.MouthSmileRight] /= 1 + UnifiedTrackingData.LatestLipData.LatestShapes[(int)UnifiedExpression.MouthSadRight];
 
             mouth.CheekLeftPuffSuck = expressions[(int)FBExpression2.Cheek_Puff_L] - expressions[(int)FBExpression2.Cheek_Suck_L];
-            mouth.CheekRightPuffSuck = expressions[(int)FBExpression2.Cheek_Puff_R] - expressions[(int)FBExpression2.Cheek_Suck_R];
-
-            mouth.Tongue = new float3(0, 0, expressions[(int)FBExpression2.Tongue_Out] - expressions[(int)FBExpression2.Tongue_Retreat]);
+            mouth.CheekRightPuffSuck = (expressions[(int)FBExpression2.Cheek_Puff_R]) - (expressions[(int)FBExpression2.Cheek_Suck_R]);
         }
 
         public float GetFaceExpression(int expressionIndex)
@@ -388,23 +369,61 @@ namespace QuestProModule.ALXR
             try
             {
                 cancellationTokenSource.Cancel();
-                tcpThread.Abort();
+                updateThread.Abort();
                 cancellationTokenSource.Dispose();
-                stream.Close();
-                stream.Dispose();
-                client.Close();
-                client.Dispose();
+                LibALXR.LibALXR.alxr_destroy();
             }
             catch (Exception ex)
             {
-                UniLog.Log("Exception when running teardown.");
+                ResoniteMod.Error("Exception when running teardown.");
                 UniLog.Error(ex.ToString());
+            }finally
+            {
+                _connected = false;
             }
         }
 
         public void JawState(bool input)
         {
             InvertJaw = input;
+        }
+        private static ALXRClientCtx CreateALXRClientCtx()
+        {
+            return new ALXRClientCtx
+            {
+                inputSend = (ref ALXRTrackingInfo data) => { },
+                viewsConfigSend = (ref ALXREyeInfo eyeInfo) => { },
+                pathStringToHash = (path) => { return (ulong)path.GetHashCode(); },
+                timeSyncSend = (ref ALXRTimeSync data) => { },
+                videoErrorReportSend = () => { },
+                batterySend = (a, b, c) => { },
+                setWaitingNextIDR = a => { },
+                requestIDR = () => { },
+                graphicsApi = config.GraphicsApi,
+                decoderType = ALXRDecoderType.D311VA,
+                displayColorSpace = ALXRColorSpace.Default,
+                facialTracking = config.FacialTrackingExt,
+                eyeTracking = config.EyeTrackingExt,
+                trackingServerPortNo = LibALXR.LibALXR.TrackingServerDefaultPortNo,
+                verbose = false,
+                disableLinearizeSrgb = false,
+                noSuggestedBindings = true,
+                noServerFramerateLock = false,
+                noFrameSkip = false,
+                disableLocalDimming = true,
+                headlessSession = false,
+                simulateHeadless = false,
+                noFTServer = true,
+                noPassthrough = true,
+                noHandTracking = !config.EnableHandleTracking,
+                firmwareVersion = new ALXRVersion
+                {
+                    // only relevant for android clients.
+                    major = 0,
+                    minor = 0,
+                    patch = 0
+                }
+            };
         }
     }
 }

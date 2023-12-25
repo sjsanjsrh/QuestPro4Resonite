@@ -1,0 +1,3 @@
+[submodule "libalxr-sharp"]
+	path = libalxr-sharp
+	url = https://github.com/sjsanjsrh/libalxr-sharp
