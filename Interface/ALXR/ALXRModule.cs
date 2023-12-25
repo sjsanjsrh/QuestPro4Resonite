@@ -285,7 +285,7 @@ namespace QuestProModule.ALXR
         }
         floatQ ALXRTypeToSystem(ALXRQuaternionf input)
         {
-            return new floatQ(input.x, input.y, input.z, input.w);
+            return new floatQ(input.x, input.y, input.z, -input.w);
         }
         bool IsValid(float3 value) => IsValid(value.x) && IsValid(value.y) && IsValid(value.z);
 
