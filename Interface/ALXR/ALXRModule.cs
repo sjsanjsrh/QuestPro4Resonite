@@ -18,16 +18,15 @@ namespace QuestProModule.ALXR
         private TcpClient client;
         private NetworkStream stream;
         private Thread tcpThread;
-        private CancellationTokenSource cancellationTokenSource;
-        private bool connected = false;
+        protected CancellationTokenSource cancellationTokenSource;
+        protected bool connected = false;
 
         private bool InvertJaw;
 
-        private const int NATURAL_EXPRESSIONS_COUNT = 63;
-        private const float SRANIPAL_NORMALIZER = 0.75f;
+        protected const float SRANIPAL_NORMALIZER = 0.75f;
         private ALXRFacialEyePacket packet;
         private byte[] rawExpressions = new byte[Marshal.SizeOf<ALXRFacialEyePacket>()];
-        private float[] expressions = new float[(int)FBExpression2.Max];
+        protected float[] expressions = new float[(int)FBExpression2.Max];
 
         private double pitch_L, yaw_L, pitch_R, yaw_R; // Eye rotations
 
@@ -156,7 +155,7 @@ namespace QuestProModule.ALXR
             }         
         }
     
-        private void PrepareUpdate()
+        protected void PrepareUpdate()
         {
             // Eye Expressions
 
