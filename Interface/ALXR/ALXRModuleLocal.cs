@@ -129,7 +129,7 @@ namespace QuestProModule.ALXR
                         }
                         connected = true;
 
-                        alxrResult.facialEyeTracking.ExpressionWeightSpan.CopyTo(expressions);
+                        packet = alxrResult.facialEyeTracking;
 
                         // Preprocess our expressions per Meta's Documentation
                         PrepareUpdate();

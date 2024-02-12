@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using LibALXR;
 using System.Runtime.InteropServices;
+using System.Linq.Expressions;
 
 namespace QuestProModule.ALXR
 {
@@ -24,11 +25,10 @@ namespace QuestProModule.ALXR
         private bool InvertJaw;
 
         protected const float SRANIPAL_NORMALIZER = 0.75f;
-        private ALXRFacialEyePacket packet;
+        protected ALXRFacialEyePacket packet;
         private byte[] rawExpressions = new byte[Marshal.SizeOf<ALXRFacialEyePacket>()];
-        protected float[] expressions = new float[(int)FBExpression2.Max];
 
-        private double pitch_L, yaw_L, pitch_R, yaw_R; // Eye rotations
+        EyeGazeData leftEye,rightEye = new EyeGazeData();
 
         public bool Connected
         { get { return connected; } }
@@ -142,7 +142,6 @@ namespace QuestProModule.ALXR
                     }
 
                     packet = ALXRFacialEyePacket.ReadPacket(rawExpressions);
-                    packet.ExpressionWeightSpan.CopyTo(expressions);
 
                     // Preprocess our expressions per Meta's Documentation
                     PrepareUpdate();
@@ -157,126 +156,59 @@ namespace QuestProModule.ALXR
     
         protected void PrepareUpdate()
         {
+            var expressions = packet.ExpressionWeightSpan;
+
             // Eye Expressions
-
-            var q = packet.eyeGazePose0.orientation;
-
-            // From radians
-            pitch_L = 180.0 / Math.PI * q.Pitch;
-            yaw_L = 180.0 / Math.PI * q.Yaw;
-
-            q = packet.eyeGazePose1.orientation;
-
-            // From radians
-            pitch_R = 180.0 / Math.PI * q.Pitch;
-            yaw_R = 180.0 / Math.PI * q.Yaw;
-
-            // Face Expressions
 
             // Eyelid edge case, eyes are actually closed now
             if (expressions[(int)FBExpression2.Eyes_Look_Down_L] == expressions[(int)FBExpression2.Eyes_Look_up_L] && expressions[(int)FBExpression2.Eyes_Closed_L] > 0.25f)
             {
-                expressions[(int)FBExpression2.Eyes_Closed_L] = 0; // 0.9f - (expressions[(int)FBExpression2.Lid_Tightener_L] * 3);
+                leftEye.open = 0; // 0.9f - (expressions[(int)FBExpression2.Lid_Tightener_L] * 3);
             }
             else
             {
-                expressions[(int)FBExpression2.Eyes_Closed_L] = 0.9f - ((expressions[(int)FBExpression2.Eyes_Closed_L] * 3) / (1 + expressions[(int)FBExpression2.Eyes_Look_Down_L] * 3));
+                leftEye.open = 0.9f - ((expressions[(int)FBExpression2.Eyes_Closed_L] * 3) / (1 + expressions[(int)FBExpression2.Eyes_Look_Down_L] * 3));
             }
 
             // Another eyelid edge case
             if (expressions[(int)FBExpression2.Eyes_Look_Down_R] == expressions[(int)FBExpression2.Eyes_Look_up_R] && expressions[(int)FBExpression2.Eyes_Closed_R] > 0.25f)
             {
-                expressions[(int)FBExpression2.Eyes_Closed_R] = 0; // 0.9f - (expressions[(int)FBExpression2.Lid_Tightener_R] * 3);
+                rightEye.open = 0; // 0.9f - (expressions[(int)FBExpression2.Lid_Tightener_R] * 3);
             }
             else
             {
-                expressions[(int)FBExpression2.Eyes_Closed_R] = 0.9f - ((expressions[(int)FBExpression2.Eyes_Closed_R] * 3) / (1 + expressions[(int)FBExpression2.Eyes_Look_Down_R] * 3));
+                rightEye.open = 0.9f - ((expressions[(int)FBExpression2.Eyes_Closed_R] * 3) / (1 + expressions[(int)FBExpression2.Eyes_Look_Down_R] * 3));
             }
 
             //expressions[(int)FBExpression2.Lid_Tightener_L = 0.8f-expressions[(int)FBExpression2.Eyes_Closed_L]; // Sad: fix combined param instead
             //expressions[(int)FBExpression2.Lid_Tightener_R = 0.8f-expressions[(int)FBExpression2.Eyes_Closed_R]; // Sad: fix combined param instead
 
-            if (1 - expressions[(int)FBExpression2.Eyes_Closed_L] < expressions[(int)FBExpression2.Lid_Tightener_L])
-                expressions[(int)FBExpression2.Lid_Tightener_L] = (1 - expressions[(int)FBExpression2.Eyes_Closed_L]) - 0.01f;
+            //if (1 - expressions[(int)FBExpression2.Eyes_Closed_L] < expressions[(int)FBExpression2.Lid_Tightener_L])
+            //    expressions[(int)FBExpression2.Lid_Tightener_L] = (1 - expressions[(int)FBExpression2.Eyes_Closed_L]) - 0.01f;
+            //if (1 - expressions[(int)FBExpression2.Eyes_Closed_R] < expressions[(int)FBExpression2.Lid_Tightener_R])
+            //    expressions[(int)FBExpression2.Lid_Tightener_R] = (1 - expressions[(int)FBExpression2.Eyes_Closed_R]) - 0.01f;
+            leftEye.squeeze = (1 - leftEye.open < expressions[(int)FBExpression2.Lid_Tightener_L]) ?
+                (1 - leftEye.open) - 0.01f : expressions[(int)FBExpression2.Lid_Tightener_L];
+            rightEye.squeeze = (1 - rightEye.open < expressions[(int)FBExpression2.Lid_Tightener_R]) ?
+                (1 - rightEye.open) - 0.01f : expressions[(int)FBExpression2.Lid_Tightener_R];
 
-            if (1 - expressions[(int)FBExpression2.Eyes_Closed_R] < expressions[(int)FBExpression2.Lid_Tightener_R])
-                expressions[(int)FBExpression2.Lid_Tightener_R] = (1 - expressions[(int)FBExpression2.Eyes_Closed_R]) - 0.01f;
+            //expressions[(int)FBExpression2.Upper_Lid_Raiser_L] = Math.Max(0, expressions[(int)FBExpression2.Upper_Lid_Raiser_L] - 0.5f);
+            //expressions[(int)FBExpression2.Upper_Lid_Raiser_R] = Math.Max(0, expressions[(int)FBExpression2.Upper_Lid_Raiser_R] - 0.5f);
+            leftEye.wide = Math.Max(0, expressions[(int)FBExpression2.Upper_Lid_Raiser_L] - 0.5f);
+            rightEye.wide = Math.Max(0, expressions[(int)FBExpression2.Upper_Lid_Raiser_R] - 0.5f);
 
-            //expressions[(int)FBExpression2.Lid_Tightener_L = Math.Max(0, expressions[(int)FBExpression2.Lid_Tightener_L] - 0.15f);
-            //expressions[(int)FBExpression2.Lid_Tightener_R = Math.Max(0, expressions[(int)FBExpression2.Lid_Tightener_R] - 0.15f);
+            //expressions[(int)FBExpression2.Lid_Tightener_L] = Math.Max(0, expressions[(int)FBExpression2.Lid_Tightener_L] - 0.5f);
+            //expressions[(int)FBExpression2.Lid_Tightener_R] = Math.Max(0, expressions[(int)FBExpression2.Lid_Tightener_R] - 0.5f);
+            rightEye.squeeze = Math.Max(0, expressions[(int)FBExpression2.Lid_Tightener_L] - 0.5f);
+            leftEye.squeeze = Math.Max(0, expressions[(int)FBExpression2.Lid_Tightener_R] - 0.5f);
 
-            expressions[(int)FBExpression2.Upper_Lid_Raiser_L] = Math.Max(0, expressions[(int)FBExpression2.Upper_Lid_Raiser_L] - 0.5f);
-            expressions[(int)FBExpression2.Upper_Lid_Raiser_R] = Math.Max(0, expressions[(int)FBExpression2.Upper_Lid_Raiser_R] - 0.5f);
+            //expressions[(int)FBExpression2.Inner_Brow_Raiser_L] = Math.Min(1, expressions[(int)FBExpression2.Inner_Brow_Raiser_L] * 3f); // * 4;
+            //expressions[(int)FBExpression2.Brow_Lowerer_L] = Math.Min(1, expressions[(int)FBExpression2.Brow_Lowerer_L] * 3f); // * 4;
+            //expressions[(int)FBExpression2.Outer_Brow_Raiser_L] = Math.Min(1, expressions[(int)FBExpression2.Outer_Brow_Raiser_L] * 3f); // * 4;
 
-            expressions[(int)FBExpression2.Lid_Tightener_L] = Math.Max(0, expressions[(int)FBExpression2.Lid_Tightener_L] - 0.5f);
-            expressions[(int)FBExpression2.Lid_Tightener_R] = Math.Max(0, expressions[(int)FBExpression2.Lid_Tightener_R] - 0.5f);
-
-            expressions[(int)FBExpression2.Inner_Brow_Raiser_L] = Math.Min(1, expressions[(int)FBExpression2.Inner_Brow_Raiser_L] * 3f); // * 4;
-            expressions[(int)FBExpression2.Brow_Lowerer_L] = Math.Min(1, expressions[(int)FBExpression2.Brow_Lowerer_L] * 3f); // * 4;
-            expressions[(int)FBExpression2.Outer_Brow_Raiser_L] = Math.Min(1, expressions[(int)FBExpression2.Outer_Brow_Raiser_L] * 3f); // * 4;
-
-            expressions[(int)FBExpression2.Inner_Brow_Raiser_R] = Math.Min(1, expressions[(int)FBExpression2.Inner_Brow_Raiser_R] * 3f); // * 4;
-            expressions[(int)FBExpression2.Brow_Lowerer_R] = Math.Min(1, expressions[(int)FBExpression2.Brow_Lowerer_R] * 3f); // * 4;
-            expressions[(int)FBExpression2.Outer_Brow_Raiser_R] = Math.Min(1, expressions[(int)FBExpression2.Outer_Brow_Raiser_R] * 3f); // * 4;
-
-            expressions[(int)FBExpression2.Eyes_Look_up_L] = expressions[(int)FBExpression2.Eyes_Look_up_L] * 0.55f;
-            expressions[(int)FBExpression2.Eyes_Look_up_R] = expressions[(int)FBExpression2.Eyes_Look_up_R] * 0.55f;
-            expressions[(int)FBExpression2.Eyes_Look_Down_L] = expressions[(int)FBExpression2.Eyes_Look_Down_L] * 1.5f;
-            expressions[(int)FBExpression2.Eyes_Look_Down_R] = expressions[(int)FBExpression2.Eyes_Look_Down_R] * 1.5f;
-
-            expressions[(int)FBExpression2.Eyes_Look_Left_L] = expressions[(int)FBExpression2.Eyes_Look_Left_L] * 0.85f;
-            expressions[(int)FBExpression2.Eyes_Look_Right_L] = expressions[(int)FBExpression2.Eyes_Look_Right_L] * 0.85f;
-            expressions[(int)FBExpression2.Eyes_Look_Left_R] = expressions[(int)FBExpression2.Eyes_Look_Left_R] * 0.85f;
-            expressions[(int)FBExpression2.Eyes_Look_Right_R] = expressions[(int)FBExpression2.Eyes_Look_Right_R] * 0.85f;
-
-            // Hack: turn rots to looks
-            // Yitch = 29(left)-- > -29(right)
-            // Yaw = -27(down)-- > 27(up)
-
-            if (pitch_L > 0)
-            {
-                expressions[(int)FBExpression2.Eyes_Look_Left_L] = Math.Min(1, (float)(pitch_L / 29.0)) * SRANIPAL_NORMALIZER;
-                expressions[(int)FBExpression2.Eyes_Look_Right_L] = 0;
-            }
-            else
-            {
-                expressions[(int)FBExpression2.Eyes_Look_Left_L] = 0;
-                expressions[(int)FBExpression2.Eyes_Look_Right_L] = Math.Min(1, (float)((-pitch_L) / 29.0)) * SRANIPAL_NORMALIZER;
-            }
-
-            if (yaw_L > 0)
-            {
-                expressions[(int)FBExpression2.Eyes_Look_up_L] = Math.Min(1, (float)(yaw_L / 27.0)) * SRANIPAL_NORMALIZER;
-                expressions[(int)FBExpression2.Eyes_Look_Down_L] = 0;
-            }
-            else
-            {
-                expressions[(int)FBExpression2.Eyes_Look_up_L] = 0;
-                expressions[(int)FBExpression2.Eyes_Look_Down_L] = Math.Min(1, (float)((-yaw_L) / 27.0)) * SRANIPAL_NORMALIZER;
-            }
-
-
-            if (pitch_R > 0)
-            {
-                expressions[(int)FBExpression2.Eyes_Look_Left_R] = Math.Min(1, (float)(pitch_R / 29.0)) * SRANIPAL_NORMALIZER;
-                expressions[(int)FBExpression2.Eyes_Look_Right_R] = 0;
-            }
-            else
-            {
-                expressions[(int)FBExpression2.Eyes_Look_Left_R] = 0;
-                expressions[(int)FBExpression2.Eyes_Look_Right_R] = Math.Min(1, (float)((-pitch_R) / 29.0)) * SRANIPAL_NORMALIZER;
-            }
-
-            if (yaw_R > 0)
-            {
-                expressions[(int)FBExpression2.Eyes_Look_up_R] = Math.Min(1, (float)(yaw_R / 27.0)) * SRANIPAL_NORMALIZER;
-                expressions[(int)FBExpression2.Eyes_Look_Down_R] = 0;
-            }
-            else
-            {
-                expressions[(int)FBExpression2.Eyes_Look_up_R] = 0;
-                expressions[(int)FBExpression2.Eyes_Look_Down_R] = Math.Min(1, (float)((-yaw_R) / 27.0)) * SRANIPAL_NORMALIZER;
-            }
+            //expressions[(int)FBExpression2.Inner_Brow_Raiser_R] = Math.Min(1, expressions[(int)FBExpression2.Inner_Brow_Raiser_R] * 3f); // * 4;
+            //expressions[(int)FBExpression2.Brow_Lowerer_R] = Math.Min(1, expressions[(int)FBExpression2.Brow_Lowerer_R] * 3f); // * 4;
+            //expressions[(int)FBExpression2.Outer_Brow_Raiser_R] = Math.Min(1, expressions[(int)FBExpression2.Outer_Brow_Raiser_R] * 3f); // * 4;
         }
         float3 ALXRTypeToSystem(ALXRVector3f input)
         {
@@ -292,23 +224,27 @@ namespace QuestProModule.ALXR
 
         public EyeGazeData GetEyeData(FBEye fbEye)
         {
-            EyeGazeData eyeRet = new EyeGazeData();
+            EyeGazeData eyeRet;
             switch (fbEye)
             {
                 case FBEye.Left:
+                    eyeRet = leftEye;
                     eyeRet.position = ALXRTypeToSystem(packet.eyeGazePose0.position);
                     eyeRet.rotation = ALXRTypeToSystem(packet.eyeGazePose0.orientation);
-                    eyeRet.open = MathX.Max(0, expressions[(int)FBExpression2.Eyes_Closed_L]);
-                    eyeRet.squeeze = expressions[(int)FBExpression2.Lid_Tightener_L];
-                    eyeRet.wide = expressions[(int)FBExpression2.Upper_Lid_Raiser_L];
+                    //eyeRet.open = MathX.Max(0, expressions[(int)FBExpression2.Eyes_Closed_L]);
+                    eyeRet.open = MathX.Max(0, eyeRet.open);
+                    //eyeRet.squeeze = expressions[(int)FBExpression2.Lid_Tightener_L];
+                    //eyeRet.wide = expressions[(int)FBExpression2.Upper_Lid_Raiser_L];
                     eyeRet.isValid = IsValid(eyeRet.position);
                     return eyeRet;
                 case FBEye.Right:
+                    eyeRet = rightEye;
                     eyeRet.position = ALXRTypeToSystem(packet.eyeGazePose1.position);
                     eyeRet.rotation = ALXRTypeToSystem(packet.eyeGazePose1.orientation);
-                    eyeRet.open = MathX.Max(0, expressions[(int)FBExpression2.Eyes_Closed_R]);
-                    eyeRet.squeeze = expressions[(int)FBExpression2.Lid_Tightener_R];
-                    eyeRet.wide = expressions[(int)FBExpression2.Upper_Lid_Raiser_R];
+                    //eyeRet.open = MathX.Max(0, expressions[(int)FBExpression2.Eyes_Closed_R]);
+                    eyeRet.open = MathX.Max(0, eyeRet.open);
+                    //eyeRet.squeeze = expressions[(int)FBExpression2.Lid_Tightener_R];
+                    //eyeRet.wide = expressions[(int)FBExpression2.Upper_Lid_Raiser_R];
                     eyeRet.isValid = IsValid(eyeRet.position);
                     return eyeRet;
                 default:
@@ -319,6 +255,8 @@ namespace QuestProModule.ALXR
         // TODO: Double check jaw movements and mappings
         public void GetFacialExpressions(FrooxEngine.Mouth mouth)
         {
+            var expressions = packet.ExpressionWeightSpan;
+
             mouth.IsDeviceActive = Engine.Current.InputInterface.VR_Active;
             mouth.IsTracking = Engine.Current.InputInterface.VR_Active;
 
@@ -379,7 +317,7 @@ namespace QuestProModule.ALXR
 
         public float GetFaceExpression(int expressionIndex)
         {
-            return expressions[expressionIndex];
+            return packet.ExpressionWeightSpan[expressionIndex];
         }
 
         public void Teardown()
