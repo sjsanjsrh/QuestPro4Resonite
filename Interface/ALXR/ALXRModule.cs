@@ -163,7 +163,7 @@ namespace QuestProModule.ALXR
             // Eyelid edge case, eyes are actually closed now
             if (expressions[(int)FBExpression2.Eyes_Look_Down_L] == expressions[(int)FBExpression2.Eyes_Look_up_L] && expressions[(int)FBExpression2.Eyes_Closed_L] > 0.25f)
             {
-                leftEye.open = 0; // 0.9f - (expressions[(int)FBExpression2.Lid_Tightener_L] * 3);
+                leftEye.open = 0;
             }
             else
             {
@@ -173,32 +173,21 @@ namespace QuestProModule.ALXR
             // Another eyelid edge case
             if (expressions[(int)FBExpression2.Eyes_Look_Down_R] == expressions[(int)FBExpression2.Eyes_Look_up_R] && expressions[(int)FBExpression2.Eyes_Closed_R] > 0.25f)
             {
-                rightEye.open = 0; // 0.9f - (expressions[(int)FBExpression2.Lid_Tightener_R] * 3);
+                rightEye.open = 0;
             }
             else
             {
                 rightEye.open = 0.9f - ((expressions[(int)FBExpression2.Eyes_Closed_R] * 3) / (1 + expressions[(int)FBExpression2.Eyes_Look_Down_R] * 3));
             }
 
-            //expressions[(int)FBExpression2.Lid_Tightener_L = 0.8f-expressions[(int)FBExpression2.Eyes_Closed_L]; // Sad: fix combined param instead
-            //expressions[(int)FBExpression2.Lid_Tightener_R = 0.8f-expressions[(int)FBExpression2.Eyes_Closed_R]; // Sad: fix combined param instead
-
-            //if (1 - expressions[(int)FBExpression2.Eyes_Closed_L] < expressions[(int)FBExpression2.Lid_Tightener_L])
-            //    expressions[(int)FBExpression2.Lid_Tightener_L] = (1 - expressions[(int)FBExpression2.Eyes_Closed_L]) - 0.01f;
-            //if (1 - expressions[(int)FBExpression2.Eyes_Closed_R] < expressions[(int)FBExpression2.Lid_Tightener_R])
-            //    expressions[(int)FBExpression2.Lid_Tightener_R] = (1 - expressions[(int)FBExpression2.Eyes_Closed_R]) - 0.01f;
             leftEye.squeeze = (1 - leftEye.open < expressions[(int)FBExpression2.Lid_Tightener_L]) ?
                 (1 - leftEye.open) - 0.01f : expressions[(int)FBExpression2.Lid_Tightener_L];
             rightEye.squeeze = (1 - rightEye.open < expressions[(int)FBExpression2.Lid_Tightener_R]) ?
                 (1 - rightEye.open) - 0.01f : expressions[(int)FBExpression2.Lid_Tightener_R];
 
-            //expressions[(int)FBExpression2.Upper_Lid_Raiser_L] = Math.Max(0, expressions[(int)FBExpression2.Upper_Lid_Raiser_L] - 0.5f);
-            //expressions[(int)FBExpression2.Upper_Lid_Raiser_R] = Math.Max(0, expressions[(int)FBExpression2.Upper_Lid_Raiser_R] - 0.5f);
             leftEye.wide = Math.Max(0, expressions[(int)FBExpression2.Upper_Lid_Raiser_L] - 0.5f);
             rightEye.wide = Math.Max(0, expressions[(int)FBExpression2.Upper_Lid_Raiser_R] - 0.5f);
 
-            //expressions[(int)FBExpression2.Lid_Tightener_L] = Math.Max(0, expressions[(int)FBExpression2.Lid_Tightener_L] - 0.5f);
-            //expressions[(int)FBExpression2.Lid_Tightener_R] = Math.Max(0, expressions[(int)FBExpression2.Lid_Tightener_R] - 0.5f);
             rightEye.squeeze = Math.Max(0, expressions[(int)FBExpression2.Lid_Tightener_L] - 0.5f);
             leftEye.squeeze = Math.Max(0, expressions[(int)FBExpression2.Lid_Tightener_R] - 0.5f);
 
