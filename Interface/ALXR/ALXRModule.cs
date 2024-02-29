@@ -107,13 +107,19 @@ namespace QuestProModule.ALXR
                     if (stream == null)
                     {
                         UniLog.Warning("Didn't reconnect to the Quest Pro just yet! Trying again...");
-                        return;
+                        continue;
                     }
 
                     if (!stream.CanRead)
                     {
                         UniLog.Warning("Can't read from the Quest Pro network stream just yet! Trying again...");
-                        return;
+                        continue;
+                    }
+
+                    if (!Engine.Current.InputInterface.VR_Active)
+                    {
+                        Thread.Sleep(100);
+                        continue;
                     }
 
                     int offset = 0;
@@ -218,6 +224,11 @@ namespace QuestProModule.ALXR
             {
                 case FBEye.Left:
                     eyeRet = leftEye;
+                    if(!connected && !Engine.Current.InputInterface.VR_Active)
+                    {
+                        eyeRet.isValid = false;
+                        return eyeRet;
+                    }
                     eyeRet.position = ALXRTypeToSystem(packet.eyeGazePose0.position);
                     eyeRet.rotation = ALXRTypeToSystem(packet.eyeGazePose0.orientation);
                     //eyeRet.open = MathX.Max(0, expressions[(int)FBExpression2.Eyes_Closed_L]);
@@ -228,6 +239,11 @@ namespace QuestProModule.ALXR
                     return eyeRet;
                 case FBEye.Right:
                     eyeRet = rightEye;
+                    if (!connected && !Engine.Current.InputInterface.VR_Active)
+                    {
+                        eyeRet.isValid = false;
+                        return eyeRet;
+                    }
                     eyeRet.position = ALXRTypeToSystem(packet.eyeGazePose1.position);
                     eyeRet.rotation = ALXRTypeToSystem(packet.eyeGazePose1.orientation);
                     //eyeRet.open = MathX.Max(0, expressions[(int)FBExpression2.Eyes_Closed_R]);
@@ -248,6 +264,11 @@ namespace QuestProModule.ALXR
 
             mouth.IsDeviceActive = Engine.Current.InputInterface.VR_Active;
             mouth.IsTracking = Engine.Current.InputInterface.VR_Active;
+
+            if (!mouth.IsDeviceActive)
+            {
+                return;
+            }
 
             mouth.JawOpen = expressions[(int)FBExpression2.Jaw_Drop] - expressions[(int)FBExpression2.Lips_Toward];
 
