@@ -33,6 +33,11 @@ namespace QuestProModule.ALXR
         public bool Connected
         { get { return connected; } }
 
+        public ALXRModule()
+        {
+            Engine.Current.OnShutdown += Teardown;
+        }
+
         public async Task<bool> Initialize(string ipconfig)
         {
             try

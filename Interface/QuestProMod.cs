@@ -50,7 +50,7 @@ namespace QuestProModule
 
         public override string Name => "QuestPro4Resonite";
 		public override string Author => "dfgHiatus & Geenz & Sinduy & Dante Tucker & ScarsTRF";
-		public override string Version => "2.1.1";
+		public override string Version => "2.1.2";
 		public override string Link => "https://github.com/sjsanjsrh/QuestPro4Resonite";
 		public override void OnEngineInit()
 		{
@@ -77,15 +77,20 @@ namespace QuestProModule
                     {
                         qpm = new ALXRModule();
                     }
-                    
-                    qpm.Initialize(_config.GetValue(QuestProIP));
+
+                    string ip = _config.GetValue(QuestProIP);
+                    if (ip == null || ip == "")
+                    {
+                        ip = "127.0.0.1";
+                    }
+                    qpm.Initialize(ip);
                     qpm.JawState(_config.GetValue(InvertJaw));
 
                     edm = new EyeDevice();
 
                     if (_config.TryGetValue(PupilSize, out float scale))
                     {
-                        scale = scale * 0.01f;
+                        scale *= 0.01f;
                         edm.SetPupilSize(scale);
                     }
 
@@ -104,6 +109,7 @@ namespace QuestProModule
         {
             if (@event.Label == "NeosModSettings variable change") return;
             UniLog.Log($"Var changed! {@event.Label}");
+
             if (@event.Key == EyeOpennessExponent)
             {
                 if (@event.Config.TryGetValue(EyeOpennessExponent, out float openExp))
@@ -131,10 +137,10 @@ namespace QuestProModule
             if (@event.Key == ResetEventInput)
             {
                 qpm.Teardown();
-                Thread.Sleep(1000);
+                Thread.Sleep(100);
                 if(@event.Config.TryGetValue(QuestProIP, out string ip))
                 {
-                    qpm.Initialize(ip);
+                    qpm.Initialize(ip).Wait();
                 }
             }
 
