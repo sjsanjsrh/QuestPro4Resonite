@@ -7,7 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using LibALXR;
 using System.Runtime.InteropServices;
-using System.Linq.Expressions;
+using ResoniteModLoader;
 
 namespace QuestProModule.ALXR
 {
@@ -41,11 +41,12 @@ namespace QuestProModule.ALXR
 
                 cancellationTokenSource = new CancellationTokenSource();
 
-                UniLog.Log("Attempting to connect to TCP socket.");
+                ResoniteMod.Msg("Attempting to connect to TCP socket.");
                 var connected = await ConnectToTCP(); // This should not block the main thread anymore...?
             } 
             catch (Exception e)
             {
+                ResoniteMod.Error("Exception when initializing ALXRModule.");
                 UniLog.Error(e.Message);
                 return false;
             }
@@ -65,13 +66,13 @@ namespace QuestProModule.ALXR
             try
             {
                 client = new TcpClient();
-                UniLog.Log($"Trying to establish a Quest Pro connection at {localAddr}:{DEFAULT_PORT}...");
+                ResoniteMod.Msg($"Trying to establish a Quest Pro connection at {localAddr}:{DEFAULT_PORT}...");
 
                 await client.ConnectAsync(localAddr, DEFAULT_PORT);
 
                 if (client.Connected)
                 {
-                    UniLog.Log("Connected to Quest Pro!");
+                    ResoniteMod.Msg("Connected to Quest Pro!");
 
                     stream = client.GetStream();
                     connected = true;
@@ -80,12 +81,13 @@ namespace QuestProModule.ALXR
                 } 
                 else
                 {
-                    UniLog.Error("Couldn't connect!");
+                    ResoniteMod.Error("Couldn't connect!");
                     return false;
                 }
             }
             catch (Exception e)
             {
+                ResoniteMod.Error("Exception when connecting to Quest Pro.");
                 UniLog.Error(e.Message);
                 return false;
             }
@@ -100,19 +102,20 @@ namespace QuestProModule.ALXR
                     // Attempt reconnection if needed
                     if (!connected || stream == null)
                     {
+                        ResoniteMod.Warn("Attempt reconnection...");
                         ConnectToTCP().RunSynchronously();
                     }
 
                     // If the connection was unsuccessful, wait a bit and try again
                     if (stream == null)
                     {
-                        UniLog.Warning("Didn't reconnect to the Quest Pro just yet! Trying again...");
+                        ResoniteMod.Warn("Didn't reconnect to the Quest Pro just yet! Trying again...");
                         continue;
                     }
 
                     if (!stream.CanRead)
                     {
-                        UniLog.Warning("Can't read from the Quest Pro network stream just yet! Trying again...");
+                        ResoniteMod.Warn("Can't read from the Quest Pro network stream just yet! Trying again...");
                         continue;
                     }
 
@@ -133,7 +136,7 @@ namespace QuestProModule.ALXR
 
                     if (offset < rawExpressions.Length && connected)
                     {
-                        UniLog.Warning("End of stream! Reconnecting...");
+                        ResoniteMod.Warn("End of stream! Reconnecting...");
                         Thread.Sleep(1000);
                         connected = false;
                         try
@@ -142,6 +145,7 @@ namespace QuestProModule.ALXR
                         }
                         catch (SocketException e)
                         {
+                            ResoniteMod.Error("SocketException when closing the stream.");
                             UniLog.Error(e.Message);
                             Thread.Sleep(1000);
                         }
@@ -154,6 +158,7 @@ namespace QuestProModule.ALXR
                 }
                 catch (SocketException e)
                 {
+                    ResoniteMod.Error("SocketException when reading from the stream.");
                     UniLog.Error(e.Message);
                     Thread.Sleep(1000);
                 }
@@ -344,8 +349,8 @@ namespace QuestProModule.ALXR
             }
             catch (Exception ex)
             {
-                UniLog.Log("Exception when running teardown.");
-                UniLog.Error(ex.ToString());
+                ResoniteMod.Error("Exception when running teardown.");
+                UniLog.Error(ex.Message);
             }
         }
 
