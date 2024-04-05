@@ -14,6 +14,8 @@ namespace QuestProModule
 {
     public class QuestProMod : ResoniteMod
     {
+        [AutoRegisterConfigKey]
+        private readonly static ModConfigurationKey<bool> EnableMode = new ModConfigurationKey<bool>("quest_pro_enabled", "Enable Quest Pro Mode", () => true);
 		[AutoRegisterConfigKey]
         private readonly static ModConfigurationKey<string> QuestProIP = new ModConfigurationKey<string>("quest_pro_IP", "Quest Pro IP. This can be found in ALXR's settings, requires a restart to take effect", () => "127.0.0.1");
 
@@ -32,11 +34,8 @@ namespace QuestProModule
         [AutoRegisterConfigKey]
         private static readonly ModConfigurationKey<bool> InvertJaw = new ModConfigurationKey<bool>("quest_pro_Invert_Jaw", "Value to invert Jaw Left/Right movement. (Only use if your jaw is inverted from your movements)", () => false);
 
-        [AutoRegisterConfigKey]
-        private static readonly ModConfigurationKey<bool> LocalMode = new ModConfigurationKey<bool>("local_mode", "Mode to run without apk installation (do not check it as it does not work yet)", () => false);
-
-        [AutoRegisterConfigKey]
-        private static readonly ModConfigurationKey<bool> ResetEventInput = new ModConfigurationKey<bool>("quest_pro_reset_event", "Press to reinitialize the Quest Pro Module. (ONLY PRESS ONCE)", () => false);
+        //[AutoRegisterConfigKey]
+        //private static readonly ModConfigurationKey<bool> LocalMode = new ModConfigurationKey<bool>("local_mode", "Mode to run without apk installation (do not check it as it does not work yet)", () => false);
 
         public static IQuestProModule qpm;
 
@@ -50,7 +49,7 @@ namespace QuestProModule
 
         public override string Name => "QuestPro4Resonite";
 		public override string Author => "dfgHiatus & Geenz & Sinduy & Dante Tucker & ScarsTRF";
-		public override string Version => "2.1.2";
+		public override string Version => "2.1.3";
 		public override string Link => "https://github.com/sjsanjsrh/QuestPro4Resonite";
 		public override void OnEngineInit()
 		{
@@ -58,7 +57,7 @@ namespace QuestProModule
 
             _config.OnThisConfigurationChanged += OnConfigurationChanged;
 
-            new Harmony("net.dfgHiatus.QuestPro4Resonite").PatchAll();
+            new Harmony("com.Sinduy.QuestPro4Resonite").PatchAll();
 		}
 
         [HarmonyPatch(typeof(InputInterface), MethodType.Constructor)]
@@ -69,7 +68,8 @@ namespace QuestProModule
             {
                 try
                 {
-                    if (_config.GetValue(LocalMode))
+                    //if (_config.GetValue(LocalMode))
+                    if (false)
                     {
                         qpm = new ALXRModuleLocal();
                     }
@@ -78,12 +78,15 @@ namespace QuestProModule
                         qpm = new ALXRModule();
                     }
 
-                    string ip = _config.GetValue(QuestProIP);
-                    if (ip == null || ip == "")
-                    {
-                        ip = "127.0.0.1";
+                    if (!_config.TryGetValue(QuestProIP, out string ip)) 
+                    { 
+                        ip = "127.0.0.1"; 
                     }
-                    qpm.Initialize(ip);
+                    if(_config.GetValue(EnableMode))
+                    {
+                        qpm.Initialize(ip);
+                    }
+
                     qpm.JawState(_config.GetValue(InvertJaw));
 
                     edm = new EyeDevice();
@@ -108,7 +111,7 @@ namespace QuestProModule
         private void OnConfigurationChanged(ConfigurationChangedEvent @event)
         {
             if (@event.Label == "NeosModSettings variable change") return;
-            UniLog.Log($"Var changed! {@event.Label}");
+            Msg($"Var changed! {@event.Label}");
 
             if (@event.Key == EyeOpennessExponent)
             {
@@ -134,13 +137,18 @@ namespace QuestProModule
                 }
             }
 
-            if (@event.Key == ResetEventInput)
+            if (@event.Key == EnableMode)
             {
-                qpm.Teardown();
-                Thread.Sleep(100);
-                if(@event.Config.TryGetValue(QuestProIP, out string ip))
+                if(_config.GetValue(EnableMode))
                 {
-                    qpm.Initialize(ip).Wait();
+                    if (@event.Config.TryGetValue(QuestProIP, out string ip))
+                    {
+                        qpm.Initialize(ip).Wait();
+                    }
+                }
+                else
+                {
+                    qpm.Teardown();
                 }
             }
 

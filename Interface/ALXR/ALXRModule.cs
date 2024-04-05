@@ -43,10 +43,17 @@ namespace QuestProModule.ALXR
             try
             {
                 localAddr = IPAddress.Parse(ipconfig);
-
+            }
+            catch (Exception)
+            {
+                ResoniteMod.Error("Exception when parsing IP address. setting to 127.0.0.1");
+                localAddr = IPAddress.Loopback;
+            }
+            try
+            {
                 cancellationTokenSource = new CancellationTokenSource();
 
-                ResoniteMod.Msg("Attempting to connect to TCP socket.");
+                ResoniteMod.Msg($"Attempting to connect to TCP socket. ip is {localAddr}");
                 var connected = await ConnectToTCP(); // This should not block the main thread anymore...?
             } 
             catch (Exception e)
@@ -342,6 +349,7 @@ namespace QuestProModule.ALXR
 
         public void Teardown()
         {
+            ResoniteMod.Msg("Teardown called.");
             try
             {
                 cancellationTokenSource.Cancel();
