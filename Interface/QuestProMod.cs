@@ -16,6 +16,7 @@ namespace QuestProModule
     {
         [AutoRegisterConfigKey]
         private readonly static ModConfigurationKey<bool> EnableMode = new ModConfigurationKey<bool>("quest_pro_enabled", "Enable Quest Pro Mode", () => true);
+
 		[AutoRegisterConfigKey]
         private readonly static ModConfigurationKey<string> QuestProIP = new ModConfigurationKey<string>("quest_pro_IP", "Quest Pro IP. This can be found in ALXR's settings, requires a restart to take effect", () => "127.0.0.1");
 
@@ -40,6 +41,7 @@ namespace QuestProModule
         public static IQuestProModule qpm;
 
         public static EyeDevice edm;
+        public static MouthDevice mdm;
 
         static ModConfiguration _config;
 
@@ -90,6 +92,7 @@ namespace QuestProModule
                     qpm.JawState(_config.GetValue(InvertJaw));
 
                     edm = new EyeDevice();
+                    mdm = new MouthDevice();
 
                     if (_config.TryGetValue(PupilSize, out float scale))
                     {
@@ -98,7 +101,7 @@ namespace QuestProModule
                     }
 
                     __instance.RegisterInputDriver(edm);
-                    __instance.RegisterInputDriver(new MouthDevice());
+                    __instance.RegisterInputDriver(mdm);
                 }
                 catch (Exception ex)
                 {

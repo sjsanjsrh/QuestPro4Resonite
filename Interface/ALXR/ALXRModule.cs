@@ -174,7 +174,8 @@ namespace QuestProModule.ALXR
                     UniLog.Error(e.Message);
                     Thread.Sleep(1000);
                 }
-            }         
+            }
+            connected = false;
         }
     
         protected void PrepareUpdate()
@@ -241,7 +242,7 @@ namespace QuestProModule.ALXR
             {
                 case FBEye.Left:
                     eyeRet = leftEye;
-                    if(!connected && !Engine.Current.InputInterface.VR_Active)
+                    if(!connected)
                     {
                         eyeRet.isValid = false;
                         return eyeRet;
@@ -256,7 +257,7 @@ namespace QuestProModule.ALXR
                     return eyeRet;
                 case FBEye.Right:
                     eyeRet = rightEye;
-                    if (!connected && !Engine.Current.InputInterface.VR_Active)
+                    if (!connected)
                     {
                         eyeRet.isValid = false;
                         return eyeRet;
@@ -280,7 +281,8 @@ namespace QuestProModule.ALXR
             var expressions = packet.ExpressionWeightSpan;
 
             mouth.IsDeviceActive = Engine.Current.InputInterface.VR_Active;
-            mouth.IsTracking = Engine.Current.InputInterface.VR_Active;
+            mouth.IsDeviceActive &= connected;
+            mouth.IsTracking = mouth.IsDeviceActive;
 
             if (!mouth.IsDeviceActive)
             {
@@ -359,6 +361,7 @@ namespace QuestProModule.ALXR
                 stream.Dispose();
                 client.Close();
                 client.Dispose();
+                connected = false;
             }
             catch (Exception ex)
             {

@@ -16,7 +16,7 @@ namespace QuestProModule
 
         private void Teardown()
         {
-
+            mouth.IsTracking = false;
         }
 
         public void CollectDeviceInfos(DataTreeList list)
