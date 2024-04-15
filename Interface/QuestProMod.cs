@@ -14,6 +14,11 @@ namespace QuestProModule
 {
     public class QuestProMod : ResoniteMod
     {
+        public override string Name => "QuestPro4Resonite";
+        public override string Author => "dfgHiatus & Geenz & Sinduy & Dante Tucker & ScarsTRF";
+        public override string Version => "2.1.4";
+        public override string Link => "https://github.com/sjsanjsrh/QuestPro4Resonite";
+
         [AutoRegisterConfigKey]
         private readonly static ModConfigurationKey<bool> EnableMode = new ModConfigurationKey<bool>("quest_pro_enabled", "Enable Quest Pro Mode", () => true);
 
@@ -49,10 +54,6 @@ namespace QuestProModule
         public static float EyeWideMult = 1.0f;
         public static float EyeMoveMulti = 1.0f;
 
-        public override string Name => "QuestPro4Resonite";
-		public override string Author => "dfgHiatus & Geenz & Sinduy & Dante Tucker & ScarsTRF";
-		public override string Version => "2.1.3";
-		public override string Link => "https://github.com/sjsanjsrh/QuestPro4Resonite";
 		public override void OnEngineInit()
 		{
             _config = GetConfiguration();
