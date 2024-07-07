@@ -1,4 +1,6 @@
 # QuestPro4Resonite  
+**Currently not compatible with clients after version 2024.5.22.1274.**  
+
 [한국어](/README-KR.md)  
 A [ResoniteModLoader](https://github.com/resonite-modding-group/ResoniteModLoader) mod for [Resonite](https://resonite.com/)  
 With Quest Pro, you can eye tracking and facial tracking with Quest Link without using Steam VR.  
