@@ -115,7 +115,7 @@ namespace QuestProModule.ALXR
                     if (!connected || stream == null)
                     {
                         ResoniteMod.Warn("Attempt reconnection...");
-                        ConnectToTCP().RunSynchronously();
+                        ConnectToTCP().GetAwaiter().GetResult();
                     }
 
                     // If the connection was unsuccessful, wait a bit and try again
@@ -362,7 +362,7 @@ namespace QuestProModule.ALXR
             try
             {
                 cancellationTokenSource.Cancel();
-                tcpThread.Abort();
+                tcpThread?.Join(1000);
                 cancellationTokenSource.Dispose();
                 stream.Close();
                 stream.Dispose();
