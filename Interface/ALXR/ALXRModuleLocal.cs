@@ -1,6 +1,7 @@
 ﻿using Elements.Core;
 using FrooxEngine;
 using System;
+using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -13,6 +14,12 @@ namespace QuestProModule.ALXR
     public class ALXRModuleLocal : ALXRModule, IQuestProModule
     {
         private Thread updateThread;
+        private ALXRLogOutputFn logOutputCallback;
+        private IntPtr nativeCtxPtr = IntPtr.Zero;
+        private ALXRClientCtx managedCtx;
+
+        [DllImport(LibALXR.LibALXR.DllName, CallingConvention = LibALXR.LibALXR.ALXRCallingConvention, EntryPoint = "alxr_init")]
+        private static extern bool alxr_init_native(IntPtr ctx, out ALXRSystemProperties systemProperties);
 
         public class Config
         {
@@ -30,20 +37,58 @@ namespace QuestProModule.ALXR
         {
             try
             {
-                NativeLibrary.SetDllImportResolver(typeof(ALXRModuleLocal).Assembly, (libraryName, assembly, searchPath) =>
+                var modDir = Path.GetDirectoryName(typeof(ALXRModuleLocal).Assembly.Location) ?? "";
+                var libalxrDir = Directory.GetDirectories(modDir, "libalxr*");
+                if (libalxrDir != null)
+                { 
+                    modDir = libalxrDir.Length > 0 ? libalxrDir[0] : modDir;
+                }
+                ResoniteMod.Msg($"libalxr directory: {modDir}");
+                System.Runtime.InteropServices.DllImportResolver resolver = (libraryName, assembly, searchPath) =>
                 {
-                    if (NativeLibrary.TryLoad(libraryName, out IntPtr handle))
+                    IntPtr handle;
+                    var fullPath = Path.Combine(modDir, libraryName);
+                    if (NativeLibrary.TryLoad(fullPath, out handle))
+                    {
+                        ResoniteMod.Msg($"[libalxr] loaded '{libraryName}' from: {fullPath}");
                         return handle;
+                    }
+                    if (NativeLibrary.TryLoad(libraryName, out handle))
+                    {
+                        ResoniteMod.Warn($"[libalxr] loaded '{libraryName}' from system path (not mod dir)");
+                        return handle;
+                    }
+                    ResoniteMod.Error($"[libalxr] failed to load '{libraryName}' (tried: {fullPath})");
                     return IntPtr.Zero;
-                });
+                };
+                NativeLibrary.SetDllImportResolver(typeof(LibALXR.LibALXR).Assembly, resolver);
+                NativeLibrary.SetDllImportResolver(typeof(ALXRModuleLocal).Assembly, resolver);
 
                 cancellationTokenSource = new CancellationTokenSource();
 
-                LibALXR.LibALXR.alxr_set_log_custom_output(ALXRLogOptions.None, (level, output, len) =>
+                ResoniteMod.Msg($"ALXRClientCtx marshal size: {Marshal.SizeOf<ALXRClientCtx>()} bytes");
+
+                ResoniteMod.Msg($"[libalxr-dir] contents:");
+                foreach (var f in Directory.GetFiles(modDir))
+                    ResoniteMod.Msg($"  {Path.GetFileName(f)}");
+
+                foreach (System.Diagnostics.ProcessModule mod in System.Diagnostics.Process.GetCurrentProcess().Modules)
+                {
+                    var name = mod.ModuleName.ToLowerInvariant();
+                    if ((name.Contains("openxr") || name.Contains("alxr") || name.Contains("oxr"))
+                        && !mod.FileName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) == false
+                        && !System.Reflection.Assembly.GetExecutingAssembly().Location.Equals(mod.FileName, StringComparison.OrdinalIgnoreCase))
+                        ResoniteMod.Warn($"[openxr-detect] already loaded: {mod.ModuleName} @ {mod.FileName}");
+                }
+
+                logOutputCallback = (level, output, len) =>
                 {
                     var fullMsg = $"[libalxr] {output}";
                     switch (level)
                     {
+                        case ALXRLogLevel.Verbose:
+                            ResoniteMod.Debug(fullMsg);
+                            break;
                         case ALXRLogLevel.Info:
                             ResoniteMod.Msg(fullMsg);
                             break;
@@ -54,7 +99,9 @@ namespace QuestProModule.ALXR
                             ResoniteMod.Error(fullMsg);
                             break;
                     }
-                });
+                };
+                // alxr_set_log_custom_output is called in Update() on the update thread
+                // so DLL load, alxr_set_log_custom_output, and alxr_init all happen on the same thread
 
                 updateThread = new Thread(Update);
                 updateThread.Start();
@@ -69,21 +116,33 @@ namespace QuestProModule.ALXR
             return Task.FromResult(true);
         }
 
+        private void FreeNativeCtx()
+        {
+            if (nativeCtxPtr != IntPtr.Zero)
+            {
+                Marshal.FreeHGlobal(nativeCtxPtr);
+                nativeCtxPtr = IntPtr.Zero;
+            }
+        }
+
         private bool ConnectALXR()
         {
             try
             {
-                ResoniteMod.Msg($"connecting to Quest Pro");
-                var ctx = CreateALXRClientCtx();
+                ResoniteMod.Msg("connecting to Quest Pro");
+                FreeNativeCtx();
+                managedCtx = CreateALXRClientCtx();
+                nativeCtxPtr = Marshal.AllocHGlobal(Marshal.SizeOf<ALXRClientCtx>());
+                Marshal.StructureToPtr(managedCtx, nativeCtxPtr, false);
                 var sysProperties = new ALXRSystemProperties();
-                if (!LibALXR.LibALXR.alxr_init(ref ctx, out sysProperties))
+                if (!alxr_init_native(nativeCtxPtr, out sysProperties))
                 {
                     return false;
                 }
                 ResoniteMod.Msg($"Runtime Name: {sysProperties.systemName}");
                 ResoniteMod.Msg($"Hand-tracking enabled? {sysProperties.IsHandTrackingEnabled}");
                 ResoniteMod.Msg($"Eye-tracking enabled? {sysProperties.IsEyeTrackingEnabled}");
-                ResoniteMod.Msg($"Face-tracking enabled? {sysProperties.IsHandTrackingEnabled}");
+                ResoniteMod.Msg($"Face-tracking enabled? {sysProperties.IsFaceTrackingEnabled}");
             }
             catch (Exception e)
             {
@@ -96,6 +155,8 @@ namespace QuestProModule.ALXR
 
         new public void Update()
         {
+            // All alxr_engine.dll calls on this thread: DLL load, set_log, alxr_init
+            LibALXR.LibALXR.alxr_set_log_custom_output(ALXRLogOptions.None, logOutputCallback);
             while (!cancellationTokenSource.IsCancellationRequested)
             {
                 if (!ConnectALXR())
@@ -169,6 +230,7 @@ namespace QuestProModule.ALXR
                 }
                 cancellationTokenSource.Dispose();
                 LibALXR.LibALXR.alxr_destroy();
+                FreeNativeCtx();
             }
             catch (Exception ex)
             {
@@ -180,7 +242,7 @@ namespace QuestProModule.ALXR
             }
         }
 
-        private static ALXRClientCtx CreateALXRClientCtx()
+        private ALXRClientCtx CreateALXRClientCtx()
         {
             return new ALXRClientCtx
             {

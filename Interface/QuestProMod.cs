@@ -36,7 +36,7 @@ namespace QuestProModule
         private static readonly ModConfigurationKey<bool> InvertJaw = new ModConfigurationKey<bool>("quest_pro_Invert_Jaw", "Value to invert Jaw Left/Right movement. (Only use if your jaw is inverted from your movements)", () => false);
 
         [AutoRegisterConfigKey]
-        private static readonly ModConfigurationKey<bool> LocalMode = new ModConfigurationKey<bool>("local_mode", "Mode to run without apk installation (do not check it as it does not work yet)", () => false);
+        private static readonly ModConfigurationKey<bool> LocalMode = new ModConfigurationKey<bool>("local_mode", "No need to run a separate executable file since the headless alxr client is hosted on Resonate.", () => true);
 
         public static IQuestProModule qpm;
 
