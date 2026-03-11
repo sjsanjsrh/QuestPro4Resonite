@@ -1,61 +1,28 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <LangVersion>10</LangVersion>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <OutputType>Library</OutputType>
-    <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>QuestProModule</RootNamespace>
     <AssemblyName>QuestProModule</AssemblyName>
-    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
-    <TargetFrameworkProfile />
-    <ProjectGuid>{0322B2EF-7452-479D-BAE2-FCAB75033337}</ProjectGuid>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
-    <DebugSymbols>true</DebugSymbols>
-    <OutputPath>bin\x64\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <EnableDefaultItems>false</EnableDefaultItems>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <DebugType>full</DebugType>
-    <PlatformTarget>AnyCPU</PlatformTarget>
-    <LangVersion>10</LangVersion>
-    <ErrorReport>prompt</ErrorReport>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
-    <OutputPath>bin\x64\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <Optimize>true</Optimize>
-    <DebugType>pdbonly</DebugType>
+    <CopyToMods Condition="'$(CopyToMods)'==''">true</CopyToMods>
+    <DebugType Condition="'$(Configuration)'=='Debug'">embedded</DebugType>
+    <Platforms>x64</Platforms>
     <PlatformTarget>x64</PlatformTarget>
-    <LangVersion>10</LangVersion>
-    <ErrorReport>prompt</ErrorReport>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
-  <ItemGroup>
-    <Reference Include="0Harmony, Version=2.2.2.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Lib.Harmony.2.2.2\lib\net472\0Harmony.dll</HintPath>
-    </Reference>
-    <Reference Include="Elements.Core">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Resonite\Resonite_Data\Managed\Elements.Core.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="FrooxEngine, Version=2021.10.26.9, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Resonite\Resonite_Data\Managed\FrooxEngine.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="ResoniteModLoader">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Resonite\Libraries\ResoniteModLoader.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="System" />
-    <Reference Include="System.Memory, Version=4.0.1.2, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51" />
-    <Reference Include="System.Numerics" />
-  </ItemGroup>
+
+  <PropertyGroup Condition="'$(ResonitePath)'==''">
+    <!-- If you don't want to provide a ResonitePath in dotnet build, you can specify one here -->
+    <ResonitePath>$(MSBuildThisFileDirectory)../Resonite/</ResonitePath>
+    <ResonitePath Condition="Exists('C:\Program Files (x86)\Steam\steamapps\common\Resonite\')">C:\Program Files (x86)\Steam\steamapps\common\Resonite\</ResonitePath>
+    <ResonitePath Condition="Exists('$(HOME)/.steam/steam/steamapps/common/Resonite/')">$(HOME)/.steam/steam/steamapps/common/Resonite/</ResonitePath>
+  </PropertyGroup>
+
   <ItemGroup>
     <Compile Include="ALXR\ALXRModule.cs" />
     <Compile Include="ALXR\ALXRModuleLocal.cs" />
@@ -65,18 +32,32 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="IQuestProModule.cs" />
   </ItemGroup>
+
   <ItemGroup>
-    <ProjectReference Include="..\libalxr-sharp\libalxr-sharp.csproj">
-      <Project>{959148aa-fc51-44ee-89b2-e25c06adb597}</Project>
-      <Name>libalxr-sharp</Name>
-    </ProjectReference>
+    <Reference Include="0Harmony">
+      <HintPath>$(ResonitePath)rml_libs\0Harmony.dll</HintPath>
+    </Reference>
+    <Reference Include="Elements.Core">
+      <HintPath>$(ResonitePath)Elements.Core.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="FrooxEngine">
+      <HintPath>$(ResonitePath)FrooxEngine.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="ResoniteModLoader">
+      <HintPath>$(ResonitePath)Libraries\ResoniteModLoader.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
   </ItemGroup>
+
   <ItemGroup>
-    <None Include="packages.config" />
+    <ProjectReference Include="..\libalxr-sharp\libalxr-sharp.csproj" />
   </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <PropertyGroup>
-    <PostBuildEvent>copy "$(TargetDir)\$(TargetFileName)" "C:\Program Files (x86)\Steam\steamapps\common\Resonite\rml_mods"
-copy "$(TargetDir)\libalxr-sharp.dll" "C:\Program Files (x86)\Steam\steamapps\common\Resonite\rml_libs"</PostBuildEvent>
-  </PropertyGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition="'$(CopyToMods)'=='true'">
+    <Message Text="Attempting to copy $(TargetFileName) to $(ResonitePath)rml_mods" Importance="high" />
+    <Copy SourceFiles="$(TargetDir)$(TargetFileName)" DestinationFolder="$(ResonitePath)rml_mods" ContinueOnError="true" />
+    <Copy SourceFiles="$(TargetDir)libalxr-sharp.dll" DestinationFolder="$(ResonitePath)rml_libs" ContinueOnError="true" />
+  </Target>
 </Project>
