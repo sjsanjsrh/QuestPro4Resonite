@@ -320,13 +320,20 @@ namespace QuestProModule.ALXR
             mouth.MouthLeftSmileFrown = Math.Min(1, expressions[(int)FBExpression2.Lip_Corner_Puller_L] * 1.2f) - Math.Min(1, (expressions[(int)FBExpression2.Lip_Corner_Depressor_L] + expressions[(int)FBExpression2.Lip_Stretcher_L]) * SRANIPAL_NORMALIZER);//Math.Min(1, (expressions[(int)FBExpression2.Lip_Corner_Depressor_L]) * 1.5f);;
             mouth.MouthRightSmileFrown = Math.Min(1, expressions[(int)FBExpression2.Lip_Corner_Puller_R] * 1.2f) - Math.Min(1, (expressions[(int)FBExpression2.Lip_Corner_Depressor_R] + expressions[(int)FBExpression2.Lip_Stretcher_R]) * SRANIPAL_NORMALIZER);//Math.Min(1, (expressions[(int)FBExpression2.Lip_Corner_Depressor_R]) * 1.5f);;
             
-            mouth.MouthPout = (expressions[(int)FBExpression2.Lip_Pucker_L] + expressions[(int)FBExpression2.Lip_Pucker_R]) / 3;
+            var mouthPout = (expressions[(int)FBExpression2.Lip_Pucker_L] + expressions[(int)FBExpression2.Lip_Pucker_R]) / 3;
+            mouth.MouthPoutLeft = mouthPout;
+            mouth.MouthPoutRight = mouthPout;
 
             // mouth.LipTopOverUnder = (expressions[(int)FBExpression2.Lip_Suck_LT] + expressions[(int)FBExpression2.Lip_Suck_RT]) / 2;
             // mouth.LipBottomOverturn = (expressions[(int)FBExpression2.Lip_Suck_LB] + expressions[(int)FBExpression2.Lip_Suck_RB]) / 2;
 
-            mouth.LipTopOverturn = (expressions[(int)FBExpression2.Lips_Toward] + expressions[(int)FBExpression2.Lip_Funneler_LT] + expressions[(int)FBExpression2.Lip_Funneler_RT]) / 3;
-            mouth.LipBottomOverturn = (expressions[(int)FBExpression2.Lips_Toward] + expressions[(int)FBExpression2.Lip_Funneler_LB] + expressions[(int)FBExpression2.Lip_Funneler_RB]) / 3;
+            var lipTopOverturn = (expressions[(int)FBExpression2.Lips_Toward] + expressions[(int)FBExpression2.Lip_Funneler_LT] + expressions[(int)FBExpression2.Lip_Funneler_RT]) / 3;
+            mouth.LipTopLeftOverturn = lipTopOverturn;
+            mouth.LipTopRightOverturn = lipTopOverturn;
+
+            var lipBottomOverturn = (expressions[(int)FBExpression2.Lips_Toward] + expressions[(int)FBExpression2.Lip_Funneler_LB] + expressions[(int)FBExpression2.Lip_Funneler_RB]) / 3;
+            mouth.LipBottomLeftOverturn = lipBottomOverturn;
+            mouth.LipBottomRightOverturn = lipBottomOverturn;
 
             //if (UnifiedTrackingData.LatestLipData.LatestShapes[(int)UnifiedExpression.MouthSmileLeft] > UnifiedTrackingData.LatestLipData.LatestShapes[(int)UnifiedExpression.MouthSadLeft])
             //    UnifiedTrackingData.LatestLipData.LatestShapes[(int)UnifiedExpression.MouthSadLeft] /= 1 + UnifiedTrackingData.LatestLipData.LatestShapes[(int)UnifiedExpression.MouthSmileLeft];

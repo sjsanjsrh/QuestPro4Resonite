@@ -32,7 +32,7 @@ namespace QuestProModule
 
         public void RegisterInputs(InputInterface inputInterface)
         {
-            _eyes = new Eyes(inputInterface, "Quest Pro Eye Tracking");
+            _eyes = new Eyes(inputInterface, "Quest Pro Eye Tracking", true);
             input = inputInterface;
         }
 

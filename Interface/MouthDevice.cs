@@ -1,5 +1,6 @@
 ﻿using Elements.Core;
 using FrooxEngine;
+using System.Collections.Generic;
 
 namespace QuestProModule
 {
@@ -30,7 +31,18 @@ namespace QuestProModule
 
         public void RegisterInputs(InputInterface inputInterface)
         {
-            mouth = new Mouth(inputInterface, "Quest Pro Mouth Tracking");
+            mouth = new Mouth(inputInterface, "Quest Pro Mouth Tracking", new MouthParameterGroup[]
+            {
+                MouthParameterGroup.JawPose,
+                MouthParameterGroup.JawOpen,
+                MouthParameterGroup.TonguePose,
+                MouthParameterGroup.LipRaise,
+                MouthParameterGroup.LipHorizontal,
+                MouthParameterGroup.SmileFrown,
+                MouthParameterGroup.MouthPout,
+                MouthParameterGroup.LipOverturn,
+                MouthParameterGroup.CheekPuffSuck,
+            });
             _input = inputInterface;
         }
 
