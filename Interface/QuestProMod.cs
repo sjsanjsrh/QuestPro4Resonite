@@ -9,9 +9,10 @@ namespace QuestProModule
 {
     public class QuestProMod : ResoniteMod
     {
+        internal const string VERSION = "2.2.0";
         public override string Name => "QuestPro4Resonite";
         public override string Author => "dfgHiatus & Geenz & Sinduy & Dante Tucker & ScarsTRF";
-        public override string Version => Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.0.0";
+        public override string Version => VERSION;
         public override string Link => "https://github.com/sjsanjsrh/QuestPro4Resonite";
 
         [AutoRegisterConfigKey]
