@@ -32,4 +32,4 @@ using System.Runtime.InteropServices;
 // by using the '*' as shown below:
 // [assembly: AssemblyVersion("1.0.*")]
 [assembly: AssemblyVersion(QuestProModule.QuestProMod.VERSION)] 
-[assembly: AssemblyFileVersion("2.2.0")]
+[assembly: AssemblyFileVersion(QuestProModule.QuestProMod.VERSION)]
