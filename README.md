@@ -13,4 +13,7 @@ Local mode, which can be run without installing the APK, still has problems usin
 4. Download [libalxr](https://github.com/korejan/ALXR-nightly/releases/download/v0.76.0%2Bnightly.2025.10.23/libalxr-win-x64.zip) of this library zip file unzip and and place it in same as mod folder in ``\rml_mods\libalxr*``. 
 ## Launching  
 1. Launch QuestLink on the Quest Pro  
-2. Launch Resonite  
+2. Launch Resonite
+3. Focus on Resonite in VR
+![oculus_cast_video_03_14_2026_02_03_44 mp4_20260314_022129 477](https://github.com/user-attachments/assets/40346794-1390-462a-b9c1-1abe5a1706e5)
+
