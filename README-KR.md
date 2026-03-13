@@ -12,3 +12,5 @@ Quest Pro를 사용하여 Steam VR없이 Quest Link만 사용하여 아이트레
 ## 실행하기  
 1. Quest Pro에서 QuestLink를 실행합니다.
 2. 레소나이트 실행.
+3. Focus on Resonite in VR
+![oculus_cast_video_03_14_2026_02_03_44 mp4_20260314_022129 477](https://github.com/user-attachments/assets/40346794-1390-462a-b9c1-1abe5a1706e5)
